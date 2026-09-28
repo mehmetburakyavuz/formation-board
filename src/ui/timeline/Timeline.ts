@@ -29,6 +29,7 @@ export class Timeline {
   private playBtn: HTMLButtonElement;
   private speedBtns = new Map<PlaybackSpeed, HTMLButtonElement>();
   private updateBtn: HTMLButtonElement;
+  private hint: HTMLParagraphElement;
   private renderedFrames: Keyframe[] | null = null;
   private renderedTeams: AppState['teams'] | null = null;
   private reorder: Reorder | null = null;
@@ -81,6 +82,8 @@ export class Timeline {
     this.list.addEventListener('keydown', this.onKey);
     this.list.addEventListener('click', this.onClick);
 
+    this.hint = el('p', { class: 'timeline-hint', hidden: '' }, [tr.timeline.needTwoFrames]);
+
     this.root = el(
       'section',
       { class: 'panel timeline', 'aria-label': tr.timeline.label, hidden: '' },
@@ -93,7 +96,7 @@ export class Timeline {
           addBtn,
           this.updateBtn,
         ]),
-        this.list,
+        el('div', { class: 'timeline-body' }, [this.list, this.hint]),
       ],
     );
 
@@ -128,8 +131,10 @@ export class Timeline {
     const label = playing ? tr.timeline.pause : tr.timeline.play;
     this.playBtn.replaceChildren(icon(playing ? PAUSE_ICON : PLAY_ICON));
     this.playBtn.setAttribute('aria-label', `${label} (${tr.help.keys.space})`);
-    this.playBtn.title = label;
-    this.playBtn.disabled = s.scenario.frames.length < 2 && !playing;
+    const tooFew = s.scenario.frames.length < 2;
+    this.playBtn.title = tooFew && !playing ? tr.timeline.needTwoFrames : label;
+    this.playBtn.disabled = tooFew && !playing;
+    this.hint.hidden = !tooFew;
     const prog = player.progress;
     for (const c of this.cards) {
       const p = prog && prog.frameId === c.frame.id ? prog.t : null;

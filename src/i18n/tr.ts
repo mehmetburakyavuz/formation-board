@@ -92,6 +92,8 @@ export const tr = {
     duration: (n: number): string => `${n}. kareye geçiş süresi`,
     seconds: (sec: number): string => `${sec.toLocaleString('tr-TR')} sn`,
     hint: 'Kartları sürükleyerek sıralayın',
+    needTwoFrames:
+      'Oynatmak için en az 2 kare gerekir: oyuncuları taşıyın, sonra yeni kare ekleyin (K).',
   },
   library: {
     title: 'Taktikler',
