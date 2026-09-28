@@ -46,6 +46,8 @@ Telefonda denemek için: `npx vite --host` ve aynı ağdaki cihazdan bilgisayar�
   **Hücum / Savunma** evresi (her evrenin dizilimi ayrı düzenlenir), oyuncu listesi
   (çift tıkla isim/numara düzenleme) ve **özel formasyon** kaydetme.
 - Formasyon değişiminde oyuncular kimliklerini korur; rol > hat > mesafe önceliğiyle yeni yerlerine koşar.
+- Oyuncu figürleri kodla üretilir (forma, şort, tozluk takım renklerinden); yer değiştirirken koşu
+  hareketiyle gittikleri yöne döner, durunca hücum yönüne (veya koşu okuna) bakarlar.
 
 ### Direktif araçları
 

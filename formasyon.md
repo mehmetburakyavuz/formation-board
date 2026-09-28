@@ -112,8 +112,15 @@ Direkler ve üst direk silindirlerden; ağ yarı saydam, ince çizgili (wirefram
 
 ### 4.4 Oyuncu figürü (`src/scene/PlayerMesh.ts`)
 Harici model yok. Stilize ama şık bir figür:
-- Gövde: `CapsuleGeometry` (yükseklik ~1.8 m), takım rengi.
-- Baş: küçük küre, ten rengi nötr.
+- ~~Gövde: `CapsuleGeometry` (yükseklik ~1.8 m), takım rengi.~~
+- ~~Baş: küçük küre, ten rengi nötr.~~
+- **Güncelleme (M8 sonrası, kullanıcı onayıyla):** kapsül yerine kodla üretilmiş stilize futbolcu figürü
+  (~1.85 m): forma + şort + tozluk + krampon, kollar, bacaklar, saçlı baş. Parçalar basit geometrilerden
+  kurulur, forma rengine göre vertex color ile boyanır (`src/scene/playerGeometry.ts`, `PlayerRig.ts`).
+  Forma takım rengi, şort numara rengi, tozluk takım rengi; kalecide koyu şort.
+- **Koşu hareketi:** iskeletsiz, prosedürel; figür yerde hareket ettikçe (formasyon geçişi, senaryo)
+  bacak/kol sallanır, gövde öne eğilir ve figür gittiği yöne döner; durunca normal duruşa ve
+  hücum/ok yönüne döner. Elle sürüklerken koşmaz (`RunGait`, `src/scene/motion.ts`).
 - Zemin halkası: oyuncunun altında ince bir disk/halka (takım rengi, seçiliyken parlak + hafif nabız animasyonu).
 - Forma numarası: gövdenin önünde ve arkasında `CanvasTexture` ile çizilmiş numara.
 - `CSS2DRenderer` ile başın üstünde **isim + numara** etiketi (ayarlardan gizlenebilir).
@@ -398,6 +405,7 @@ tests/
 ## 16. Kapsam dışı (şimdilik yapma)
 
 - Backend, kullanıcı hesabı, çoklu kullanıcı / canlı paylaşım.
-- Gerçekçi insan modelleri, iskelet animasyonu (koşma animasyonu vb.).
+- Harici/gerçekçi insan modelleri, iskelet (bone) animasyonu. (Kodla üretilen stilize figür ve
+  prosedürel koşu hareketi §4.4'teki güncellemeyle kapsama alındı.)
 - Yapay zekâ ile otomatik taktik önerisi.
 - Gerçek kulüp/oyuncu isimleri, logolar veya lisanslı formalar.

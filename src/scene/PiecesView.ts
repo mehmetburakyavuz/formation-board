@@ -9,8 +9,18 @@ import {
   type PlayerState,
 } from '../state/schema';
 import { Ball } from './Ball';
-import { PlayerAssets } from './PlayerAssets';
+import { kitKey, PlayerAssets } from './PlayerAssets';
+import type { KitColors } from './playerGeometry';
 import { PlayerMesh, type PlayerAppearance } from './PlayerMesh';
+
+const GK_SHORTS = '#1d1d1d';
+
+/** Outfield: shirt + socks in the team colour, shorts in the number colour. */
+function kitOf(team: AppState['teams']['home'], isGk: boolean): KitColors {
+  return isGk
+    ? { shirt: team.gkColor, shorts: GK_SHORTS, socks: team.gkColor }
+    : { shirt: team.color, shorts: team.numberColor, socks: team.color };
+}
 
 /** Reflects players and ball from the store into the scene. */
 export class PiecesView {
@@ -40,6 +50,7 @@ export class PiecesView {
       label: p.name || tr.roles[p.role],
       badges: p.instructions.map((i) => tr.instructions[i]),
       bodyColor: isGk ? team.gkColor : team.color,
+      kit: kitOf(team, isGk),
       numberColor: isGk ? '#111111' : team.numberColor,
       ringColor: team.color,
       facing: p.team === 'home' ? 1 : -1,
@@ -71,9 +82,13 @@ export class PiecesView {
       }
     });
     if (teamsChanged) {
-      const used = new Set<string>();
-      for (const t of Object.values(s.teams)) used.add(t.color).add(t.gkColor);
-      this.assets.prune(used);
+      const kits = new Set<string>();
+      const rings = new Set<string>();
+      for (const t of Object.values(s.teams)) {
+        kits.add(kitKey(kitOf(t, false))).add(kitKey(kitOf(t, true)));
+        rings.add(t.color);
+      }
+      this.assets.prune(kits, rings);
     }
     for (const [id, mesh] of this.players) {
       if (!seen.has(id)) {

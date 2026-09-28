@@ -1,14 +1,9 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import {
-  BODY_CENTER_Y,
-  DIM_OPACITY,
-  FIGURE_HEIGHT,
-  HEAD_Y,
-  NUMBER_Y,
-  type PlayerAssets,
-} from './PlayerAssets';
-import { approachAngle, DropBounce, Glide } from './motion';
+import { DIM_OPACITY, type PlayerAssets } from './PlayerAssets';
+import { approachAngle, DropBounce, Glide, RunGait } from './motion';
+import { FIGURE_HEIGHT, type KitColors } from './playerGeometry';
+import { PlayerRig } from './PlayerRig';
 
 export type PlayerVisibility = 'normal' | 'dim' | 'hidden';
 
@@ -17,7 +12,9 @@ export interface PlayerAppearance {
   label: string;
   /** Instruction badge texts shown under the label. */
   badges: readonly string[];
+  /** Shirt colour (also used for the label's number chip). */
   bodyColor: string;
+  kit: KitColors;
   numberColor: string;
   ringColor: string;
   /** +1 faces +X (home attack direction), -1 faces -X. */
@@ -28,13 +25,12 @@ const LIFT_HEIGHT = 0.3;
 
 const HOVER_SCALE = 1.05;
 
-/** Stylised player figure: capsule body, head, shirt numbers, ground ring and label. */
+/** Stylised, procedurally built footballer: kit, shirt numbers, run cycle, ground ring and label. */
 export class PlayerMesh {
   readonly root = new THREE.Group();
   readonly hit: THREE.Mesh;
   private figure = new THREE.Group();
-  private body: THREE.Mesh;
-  private head: THREE.Mesh;
+  private rig: PlayerRig;
   private visibility: PlayerVisibility = 'normal';
   private labelVisible = true;
   private ring: THREE.Mesh;
@@ -55,6 +51,7 @@ export class PlayerMesh {
   private scale = 1;
   private glide = new Glide(this.root);
   private bounce = new DropBounce();
+  private gait = new RunGait();
   /** Figure yaw (radians); 0 = facing +X. */
   private heading = 0;
   private headingTarget = 0;
@@ -67,22 +64,14 @@ export class PlayerMesh {
   ) {
     this.root.name = `player:${id}`;
 
-    this.body = new THREE.Mesh(assets.bodyGeo, assets.hitMat);
-    this.body.position.y = BODY_CENTER_Y;
-    this.body.castShadow = true;
-
-    const head = new THREE.Mesh(assets.headGeo, assets.headMat);
-    head.position.y = HEAD_Y;
-    head.castShadow = true;
-    this.head = head;
-
-    this.numberFront = new THREE.Mesh(assets.numberGeo, assets.hitMat);
-    this.numberFront.position.y = NUMBER_Y;
-    this.numberBack = new THREE.Mesh(assets.numberGeo, assets.hitMat);
-    this.numberBack.position.y = NUMBER_Y;
+    this.rig = new PlayerRig(assets.blankFigure, assets.kitMat);
+    // Numbers ride on the upper body so they lean with it.
+    this.numberFront = new THREE.Mesh(assets.numberFrontGeo, assets.hitMat);
+    this.numberBack = new THREE.Mesh(assets.numberBackGeo, assets.hitMat);
     this.numberBack.rotation.y = Math.PI;
+    this.rig.upper.add(this.numberFront, this.numberBack);
 
-    this.figure.add(this.body, head, this.numberFront, this.numberBack);
+    this.figure.add(this.rig.root);
 
     this.ring = new THREE.Mesh(assets.ringGeo, assets.ringSelectedMat);
     this.ring.position.y = 0.02;
@@ -152,6 +141,7 @@ export class PlayerMesh {
       this.numberFront.material = this.numberMat;
       this.numberBack.material = this.numberMat;
     }
+    this.rig.setGeometry(this.assets.figure(a.kit));
     this.applyMaterials();
     this.labelNum.textContent = String(a.number);
     this.labelName.textContent = a.label;
@@ -189,10 +179,7 @@ export class PlayerMesh {
     const a = this.appearance;
     if (!a) return;
     const dim = this.visibility === 'dim';
-    this.body.material = this.assets.bodyMaterial(a.bodyColor, dim);
-    this.head.material = dim ? this.assets.headDimMat : this.assets.headMat;
-    this.body.castShadow = !dim;
-    this.head.castShadow = !dim;
+    this.rig.setMaterial(dim ? this.assets.kitDimMat : this.assets.kitMat, !dim);
     if (this.numberMat) this.numberMat.opacity = dim ? DIM_OPACITY : 1;
     this.updateRingMaterial();
   }
@@ -229,7 +216,12 @@ export class PlayerMesh {
     this.scale += (targetScale - this.scale) * k;
     const [sxz, sy] = this.bounce.step(dtMs);
     this.figure.scale.set(this.scale * sxz, this.scale * sy, this.scale * sxz);
-    this.heading = approachAngle(this.heading, this.headingTarget, dtMs, 140);
+    // Run towards where the player is going; face the tactical heading once there.
+    const p = this.root.position;
+    this.gait.step(p.x, p.z, dtMs, this.lifted);
+    this.rig.pose(this.gait);
+    const target = this.gait.amount > 0.3 ? this.gait.moveYaw : this.headingTarget;
+    this.heading = approachAngle(this.heading, target, dtMs, 140);
     this.figure.rotation.y = this.heading;
     const pulse = this.selected ? 1 + Math.sin(timeMs / 180) * 0.06 : 1;
     this.ring.scale.set(pulse, 1, pulse);

@@ -1,36 +1,29 @@
 import * as THREE from 'three';
+import {
+  buildFigure,
+  buildNumberPatch,
+  FIGURE_HEIGHT,
+  type FigureGeometries,
+  type KitColors,
+} from './playerGeometry';
 
-export const BODY_RADIUS = 0.32;
-const BODY_LENGTH = 0.95;
-export const BODY_CENTER_Y = BODY_LENGTH / 2 + BODY_RADIUS;
-const HEAD_RADIUS = 0.16;
-export const HEAD_Y = BODY_LENGTH + BODY_RADIUS * 2 + HEAD_RADIUS * 0.75;
-export const FIGURE_HEIGHT = HEAD_Y + HEAD_RADIUS;
 const RING_INNER = 0.62;
 const RING_OUTER = 0.8;
-const NUMBER_ARC = 1.3; // radians of the shirt covered by the number
-const NUMBER_HEIGHT = 0.42;
-export const NUMBER_Y = BODY_CENTER_Y + 0.12;
 export const DIM_OPACITY = 0.3;
 
+export function kitKey(kit: KitColors): string {
+  return `${kit.shirt}|${kit.shorts}|${kit.socks}`;
+}
+
 /**
- * Geometries and materials shared by all player figures.
- * Only the number textures are per player.
+ * Geometries and materials shared by all player figures: one geometry set per kit
+ * (vertex coloured), two shared materials. Only the number textures are per player.
  */
 export class PlayerAssets {
-  readonly bodyGeo = new THREE.CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 6, 20);
-  readonly headGeo = new THREE.SphereGeometry(HEAD_RADIUS, 20, 14);
   readonly ringGeo = new THREE.RingGeometry(RING_INNER, RING_OUTER, 48).rotateX(-Math.PI / 2);
-  readonly numberGeo = new THREE.CylinderGeometry(
-    BODY_RADIUS + 0.004,
-    BODY_RADIUS + 0.004,
-    NUMBER_HEIGHT,
-    16,
-    1,
-    true,
-    Math.PI / 2 - NUMBER_ARC / 2,
-    NUMBER_ARC,
-  );
+  /** Big number on the back, small one on the chest. */
+  readonly numberBackGeo = buildNumberPatch(1.13, 1.39, 1.5);
+  readonly numberFrontGeo = buildNumberPatch(1.24, 1.35, 0.62);
   /** Invisible, generous pick volume (easier to grab, especially by touch). */
   readonly hitGeo = new THREE.CylinderGeometry(0.75, 0.75, FIGURE_HEIGHT + 0.3, 12).translate(
     0,
@@ -38,9 +31,30 @@ export class PlayerAssets {
     0,
   );
   readonly hitMat = new THREE.MeshBasicMaterial({ visible: false });
-  readonly headMat = new THREE.MeshStandardMaterial({ color: 0xd9b08c, roughness: 0.6 });
+  readonly kitMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.62,
+    metalness: 0.02,
+  });
+  readonly kitDimMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.62,
+    metalness: 0.02,
+    transparent: true,
+    opacity: DIM_OPACITY,
+    depthWrite: false,
+  });
 
-  private bodyMats = new Map<string, THREE.MeshStandardMaterial>();
+  private blankGeo = new THREE.BufferGeometry();
+  /** Stand-in until a player gets its kit (nothing to draw). */
+  readonly blankFigure: FigureGeometries = {
+    torso: this.blankGeo,
+    arm: this.blankGeo,
+    thigh: this.blankGeo,
+    shin: this.blankGeo,
+  };
+
+  private kits = new Map<string, FigureGeometries>();
   private ringMats = new Map<string, THREE.MeshBasicMaterial>();
   readonly ringSelectedMat = new THREE.MeshBasicMaterial({
     color: 0xffffff,
@@ -52,30 +66,15 @@ export class PlayerAssets {
     polygonOffsetUnits: -4,
   });
 
-  readonly headDimMat = new THREE.MeshStandardMaterial({
-    color: 0xd9b08c,
-    roughness: 0.6,
-    transparent: true,
-    opacity: DIM_OPACITY,
-    depthWrite: false,
-  });
-
-  /** Shared per colour; `dim` variants are translucent (for a faded opponent). */
-  bodyMaterial(color: string, dim = false): THREE.MeshStandardMaterial {
-    const key = `${color}|${dim}`;
-    let m = this.bodyMats.get(key);
-    if (!m) {
-      m = new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.55,
-        metalness: 0.05,
-        transparent: dim,
-        opacity: dim ? DIM_OPACITY : 1,
-        depthWrite: !dim,
-      });
-      this.bodyMats.set(key, m);
+  /** Figure geometries for a kit, built once and shared. */
+  figure(kit: KitColors): FigureGeometries {
+    const key = kitKey(kit);
+    let g = this.kits.get(key);
+    if (!g) {
+      g = buildFigure(kit);
+      this.kits.set(key, g);
     }
-    return m;
+    return g;
   }
 
   ringMaterial(color: string, dim = false): THREE.MeshBasicMaterial {
@@ -96,14 +95,18 @@ export class PlayerAssets {
     return m;
   }
 
-  /** Disposes cached colour materials whose colour is no longer used by any team. */
-  prune(usedColors: ReadonlySet<string>): void {
-    for (const cache of [this.bodyMats, this.ringMats]) {
-      for (const [key, m] of cache) {
-        if (!usedColors.has(key.split('|')[0])) {
-          m.dispose();
-          cache.delete(key);
-        }
+  /** Disposes cached kits / ring materials that no player uses any more. */
+  prune(usedKits: ReadonlySet<string>, usedRingColors: ReadonlySet<string>): void {
+    for (const [key, g] of this.kits) {
+      if (!usedKits.has(key)) {
+        disposeFigure(g);
+        this.kits.delete(key);
+      }
+    }
+    for (const [key, m] of this.ringMats) {
+      if (!usedRingColors.has(key.split('|')[0])) {
+        m.dispose();
+        this.ringMats.delete(key);
       }
     }
   }
@@ -111,14 +114,14 @@ export class PlayerAssets {
   createNumberMaterial(num: number, color: string): THREE.MeshStandardMaterial {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
-    canvas.height = 96;
+    canvas.height = 112;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.font = 'bold 76px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+      ctx.font = 'bold 92px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = color;
-      ctx.fillText(String(num), 64, 52);
+      ctx.fillText(String(num), 64, 62);
     }
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
@@ -134,16 +137,26 @@ export class PlayerAssets {
   }
 
   dispose(): void {
-    for (const g of [this.bodyGeo, this.headGeo, this.ringGeo, this.numberGeo, this.hitGeo]) {
+    for (const g of [
+      this.blankGeo,
+      this.ringGeo,
+      this.numberBackGeo,
+      this.numberFrontGeo,
+      this.hitGeo,
+    ]) {
       g.dispose();
     }
-    this.hitMat.dispose();
-    this.headMat.dispose();
-    this.headDimMat.dispose();
-    this.ringSelectedMat.dispose();
-    for (const m of this.bodyMats.values()) m.dispose();
+    for (const m of [this.hitMat, this.kitMat, this.kitDimMat, this.ringSelectedMat]) m.dispose();
+    for (const g of this.kits.values()) disposeFigure(g);
     for (const m of this.ringMats.values()) m.dispose();
-    this.bodyMats.clear();
+    this.kits.clear();
     this.ringMats.clear();
   }
+}
+
+function disposeFigure(g: FigureGeometries): void {
+  g.torso.dispose();
+  g.arm.dispose();
+  g.thigh.dispose();
+  g.shin.dispose();
 }
