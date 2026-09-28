@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { easing } from '../core/tween';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import {
   BODY_CENTER_Y,
@@ -9,6 +8,7 @@ import {
   NUMBER_Y,
   type PlayerAssets,
 } from './PlayerAssets';
+import { approachAngle, DropBounce, Glide } from './motion';
 
 export type PlayerVisibility = 'normal' | 'dim' | 'hidden';
 
@@ -26,15 +26,6 @@ export interface PlayerAppearance {
 
 const LIFT_HEIGHT = 0.3;
 
-interface Glide {
-  fromX: number;
-  fromZ: number;
-  toX: number;
-  toZ: number;
-  elapsed: number;
-  delay: number;
-  duration: number;
-}
 const HOVER_SCALE = 1.05;
 
 /** Stylised player figure: capsule body, head, shirt numbers, ground ring and label. */
@@ -62,7 +53,13 @@ export class PlayerMesh {
   private lifted = false;
   private lift = 0;
   private scale = 1;
-  private glide: Glide | null = null;
+  private glide = new Glide(this.root);
+  private bounce = new DropBounce();
+  /** Figure yaw (radians); 0 = facing +X. */
+  private heading = 0;
+  private headingTarget = 0;
+  private headingInit = false;
+  private povHidden = false;
 
   constructor(
     readonly id: string,
@@ -116,36 +113,34 @@ export class PlayerMesh {
 
   /** Jump to a position (cancels any running glide). */
   setPosition(x: number, z: number): void {
-    this.glide = null;
+    this.glide.stop();
     this.root.position.set(x, 0, z);
   }
 
   /** Glide from the current visual position to (x, z), easeInOutCubic. */
   glideTo(x: number, z: number, durationMs: number, delayMs: number): void {
-    const { x: fx, z: fz } = this.root.position;
-    if (Math.abs(fx - x) < 1e-6 && Math.abs(fz - z) < 1e-6) {
-      this.setPosition(x, z);
-      return;
-    }
-    this.glide = {
-      fromX: fx,
-      fromZ: fz,
-      toX: x,
-      toZ: z,
-      elapsed: 0,
-      delay: delayMs,
-      duration: durationMs,
-    };
+    this.glide.start(x, z, durationMs, delayMs);
   }
 
-  private stepGlide(dtMs: number): void {
-    const g = this.glide;
-    if (!g) return;
-    g.elapsed += dtMs;
-    const t = Math.min(1, Math.max(0, (g.elapsed - g.delay) / g.duration));
-    const k = easing.easeInOutCubic(t);
-    this.root.position.set(g.fromX + (g.toX - g.fromX) * k, 0, g.fromZ + (g.toZ - g.fromZ) * k);
-    if (t >= 1) this.glide = null;
+  /** Direction the figure should face (yaw, radians; 0 = +X). Turns smoothly. */
+  setHeading(yaw: number): void {
+    this.headingTarget = yaw;
+    if (!this.headingInit) {
+      this.headingInit = true;
+      this.heading = yaw;
+    }
+  }
+
+  /** Hides the figure while the camera is inside this player's eyes. */
+  setPovHidden(on: boolean): void {
+    this.povHidden = on;
+    this.applyVisible();
+  }
+
+  private applyVisible(): void {
+    const shown = this.visibility !== 'hidden' && !this.povHidden;
+    this.root.visible = shown;
+    this.label.visible = this.labelVisible && shown;
   }
 
   setAppearance(a: PlayerAppearance): void {
@@ -158,7 +153,6 @@ export class PlayerMesh {
       this.numberBack.material = this.numberMat;
     }
     this.applyMaterials();
-    this.figure.rotation.y = a.facing === 1 ? 0 : Math.PI;
     this.labelNum.textContent = String(a.number);
     this.labelName.textContent = a.label;
     this.labelNum.style.background = a.bodyColor;
@@ -179,15 +173,14 @@ export class PlayerMesh {
 
   setLabelVisible(visible: boolean): void {
     this.labelVisible = visible;
-    this.label.visible = visible && this.visibility !== 'hidden';
+    this.applyVisible();
   }
 
   /** Normal, faded (translucent) or hidden — used for the opponent team. */
   setVisibility(v: PlayerVisibility): void {
     if (this.visibility === v) return;
     this.visibility = v;
-    this.root.visible = v !== 'hidden';
-    this.label.visible = this.labelVisible && v !== 'hidden';
+    this.applyVisible();
     this.label.element.classList.toggle('dim', v === 'dim');
     this.applyMaterials();
   }
@@ -216,6 +209,7 @@ export class PlayerMesh {
   }
 
   setLifted(on: boolean): void {
+    if (this.lifted && !on) this.bounce.trigger();
     this.lifted = on;
   }
 
@@ -227,13 +221,16 @@ export class PlayerMesh {
   }
 
   update(dtMs: number, timeMs: number): void {
-    this.stepGlide(dtMs);
+    this.glide.step(dtMs);
     const k = 1 - Math.exp(-dtMs / 60);
     this.lift += ((this.lifted ? LIFT_HEIGHT : 0) - this.lift) * k;
     this.figure.position.y = this.lift;
     const targetScale = this.hovered || this.lifted ? HOVER_SCALE : 1;
     this.scale += (targetScale - this.scale) * k;
-    this.figure.scale.setScalar(this.scale);
+    const [sxz, sy] = this.bounce.step(dtMs);
+    this.figure.scale.set(this.scale * sxz, this.scale * sy, this.scale * sxz);
+    this.heading = approachAngle(this.heading, this.headingTarget, dtMs, 140);
+    this.figure.rotation.y = this.heading;
     const pulse = this.selected ? 1 + Math.sin(timeMs / 180) * 0.06 : 1;
     this.ring.scale.set(pulse, 1, pulse);
   }

@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { tr } from '../i18n/tr';
 import type { Store, UpdateMeta } from '../state/store';
-import { BALL_ID, type AppState, type PieceId, type PlayerState } from '../state/schema';
+import {
+  BALL_ID,
+  type Anchor,
+  type AppState,
+  type PieceId,
+  type PlayerState,
+} from '../state/schema';
 import { Ball } from './Ball';
 import { PlayerAssets } from './PlayerAssets';
 import { PlayerMesh, type PlayerAppearance } from './PlayerMesh';
@@ -151,9 +157,47 @@ export class PiecesView {
     return p ? target.copy(p.root.position) : null;
   }
 
-  update(dtMs: number, timeMs: number): void {
+  /** Hides one player's figure (the camera is in his eyes), or none. */
+  setPovPlayer(id: PieceId | null): void {
+    for (const [pid, m] of this.players) m.setPovHidden(pid === id);
+  }
+
+  /**
+   * Players face their attack direction, or the direction of their own run/dribble
+   * (else pass) arrow when they have one.
+   */
+  private updateHeadings(s: AppState): void {
+    const arrows = new Map<PieceId, Anchor>();
+    for (const d of s.drawings) {
+      if (d.type !== 'arrow' || d.from.kind !== 'player') continue;
+      const has = arrows.get(d.from.id);
+      if (!has || d.style !== 'pass') arrows.set(d.from.id, d.to);
+    }
+    for (const p of s.players) {
+      const m = this.players.get(p.id);
+      if (!m) continue;
+      let yaw = p.team === 'home' ? 0 : Math.PI;
+      const to = arrows.get(p.id);
+      const target = to ? this.anchorPosition(to) : null;
+      if (target) {
+        const dx = target.x - m.root.position.x;
+        const dz = target.z - m.root.position.z;
+        if (dx * dx + dz * dz > 0.25) yaw = Math.atan2(-dz, dx);
+      }
+      m.setHeading(yaw);
+    }
+  }
+
+  private anchorPosition(a: Anchor): { x: number; z: number } | null {
+    if (a.kind === 'point') return a;
+    return this.players.get(a.id)?.root.position ?? null;
+  }
+
+  update(dtMs: number, timeMs: number, cameraPos?: THREE.Vector3): void {
+    this.updateHeadings(this.store.state);
     for (const m of this.players.values()) m.update(dtMs, timeMs);
-    this.ball.update(dtMs, timeMs);
+    const camDist = cameraPos ? cameraPos.distanceTo(this.ball.root.position) : 0;
+    this.ball.update(dtMs, timeMs, camDist);
   }
 
   dispose(): void {

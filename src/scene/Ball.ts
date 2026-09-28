@@ -3,6 +3,11 @@ import { BALL_ID } from '../state/schema';
 
 export const BALL_RADIUS = 0.11;
 const LIFT_HEIGHT = 0.3;
+/**
+ * Keeps the ball readable from far away: its radius never drops below this fraction
+ * of the camera distance (≈ a few pixels on screen).
+ */
+const MIN_SCREEN_RADIUS = 0.0035;
 const PENTAGON_RADIUS = 0.36; // angular radius (rad) of each black patch
 
 /** Equirectangular texture (matches SphereGeometry UVs) with 12 black pentagons. */
@@ -85,6 +90,17 @@ export class Ball {
     polygonOffsetUnits: -4,
   });
   private hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  /** Subtle always-on ground marker so the ball is easy to spot. */
+  private marker: THREE.Mesh;
+  private markerMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
   private visualScale = 1;
   private lifted = false;
   private hovered = false;
@@ -104,7 +120,12 @@ export class Ball {
     this.hit = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), this.hitMat);
     this.hit.position.y = 0.3;
     this.hit.userData.pieceId = BALL_ID;
-    this.root.add(this.sphere, this.ring, this.hit);
+    this.marker = new THREE.Mesh(
+      new THREE.RingGeometry(BALL_RADIUS * 1.6, BALL_RADIUS * 2.1, 32).rotateX(-Math.PI / 2),
+      this.markerMat,
+    );
+    this.marker.position.y = 0.015;
+    this.root.add(this.sphere, this.marker, this.ring, this.hit);
   }
 
   setPosition(x: number, z: number): void {
@@ -128,14 +149,19 @@ export class Ball {
     this.lifted = on;
   }
 
-  update(dtMs: number, timeMs: number): void {
+  /** `cameraDistance` enables the minimum on-screen size (0 = off). */
+  update(dtMs: number, timeMs: number, cameraDistance = 0): void {
     const k = 1 - Math.exp(-dtMs / 60);
     this.lift += ((this.lifted ? LIFT_HEIGHT : 0) - this.lift) * k;
-    const s = this.visualScale * (this.hovered || this.lifted ? 1.1 : 1);
+    const base = Math.max(this.visualScale, (cameraDistance * MIN_SCREEN_RADIUS) / BALL_RADIUS);
+    const s = base * (this.hovered || this.lifted ? 1.1 : 1);
     this.sphere.scale.setScalar(s);
+    this.marker.scale.set(s, 1, s);
+    // Grow the pick volume with the ball so it stays easy to grab from afar.
+    this.hit.scale.setScalar(Math.max(1, (s * BALL_RADIUS) / 0.45));
     this.sphere.position.y = BALL_RADIUS * s + this.lift;
     if (this.selected) {
-      const pulse = 1 + Math.sin(timeMs / 180) * 0.08;
+      const pulse = (1 + Math.sin(timeMs / 180) * 0.08) * Math.max(1, s / this.visualScale);
       this.ring.scale.set(pulse, 1, pulse);
     }
   }
@@ -148,6 +174,8 @@ export class Ball {
     this.texture.dispose();
     this.ringMat.dispose();
     this.hitMat.dispose();
+    this.marker.geometry.dispose();
+    this.markerMat.dispose();
     this.root.removeFromParent();
   }
 }

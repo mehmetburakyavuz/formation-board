@@ -26,6 +26,7 @@ const GROUPS: [string, Row[]][] = [
       [['1', '–', '5'], h.items.presets],
       [['R'], h.items.rotate],
       [['F'], h.items.fullscreen],
+      [[h.keys.dblClickPlayer], h.items.pov],
     ],
   ],
   [

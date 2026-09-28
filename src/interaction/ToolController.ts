@@ -1,7 +1,7 @@
 import type { Controller } from '../app/Controller';
 import type { DrawingLayer } from '../scene/drawings/DrawingLayer';
 import type { PiecesView } from '../scene/PiecesView';
-import type { Anchor, AppState, NoteDrawing, ToolId } from '../state/schema';
+import type { Anchor, AppState, NoteDrawing, PieceId, ToolId } from '../state/schema';
 import type { Store } from '../state/store';
 import type { DragController } from './DragController';
 import type { Picker } from './Picker';
@@ -9,7 +9,13 @@ import type { SelectionController } from './SelectionController';
 import { ArrowTool } from './tools/ArrowTool';
 import { EraserTool, NoteTool } from './tools/ClickTools';
 import { SelectTool } from './tools/SelectTool';
-import { hitDrawing, type ScreenPoint, type Tool, type ToolContext } from './tools/Tool';
+import {
+  hitDrawing,
+  pickAnyPlayer,
+  type ScreenPoint,
+  type Tool,
+  type ToolContext,
+} from './tools/Tool';
 import { ZoneTool } from './tools/ZoneTool';
 
 export interface ToolControllerDeps {
@@ -22,6 +28,8 @@ export interface ToolControllerDeps {
   drag: DragController;
   selection: SelectionController;
   requestNote(at: ScreenPoint, anchor: Anchor, existing?: NoteDrawing): void;
+  /** Double click on a player: look through his eyes. */
+  requestPov(id: PieceId): void;
 }
 
 /**
@@ -30,6 +38,7 @@ export interface ToolControllerDeps {
  */
 export class ToolController {
   private tools: Record<ToolId, Tool>;
+  private requestPov: (id: PieceId) => void;
   private current: Tool;
   private ctx: ToolContext;
   private el: HTMLElement;
@@ -37,6 +46,7 @@ export class ToolController {
   constructor(deps: ToolControllerDeps) {
     const el = deps.el;
     this.el = el;
+    this.requestPov = deps.requestPov;
     this.ctx = {
       ...deps,
       capture: (e) => {
@@ -115,12 +125,17 @@ export class ToolController {
     if (!this.current.active) this.ctx.pieces.setHovered(null);
   };
 
-  /** Double click on a note (select tool) edits its text. */
+  /** Double click (select tool): a note edits its text, a player opens his point of view. */
   private onDblClick = (e: MouseEvent): void => {
     if (this.ctx.store.state.tool !== 'select') return;
     const id = hitDrawing(this.ctx, e);
     const d = this.ctx.store.state.drawings.find((x) => x.id === id);
-    if (d?.type === 'note') this.ctx.requestNote(e, d.anchor, d);
+    if (d?.type === 'note') {
+      this.ctx.requestNote(e, d.anchor, d);
+      return;
+    }
+    const player = pickAnyPlayer(this.ctx, e);
+    if (player) this.requestPov(player);
   };
 
   /** Escape: abort the current gesture, else clear selections. */

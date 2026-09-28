@@ -13,6 +13,7 @@ import { DragGuides } from '../scene/DragGuides';
 import { DrawingLayer } from '../scene/drawings/DrawingLayer';
 import { PiecesView } from '../scene/PiecesView';
 import { Pitch } from '../scene/Pitch';
+import { PovCamera } from '../scene/PovCamera';
 import { SceneManager } from '../scene/SceneManager';
 import { SnapGrid } from '../scene/SnapGrid';
 import { History } from '../state/history';
@@ -66,8 +67,12 @@ export class App {
   readonly scenario: ScenarioActions;
   readonly library: LibraryActions;
   readonly libraryModal: LibraryModal;
+  readonly pov: PovCamera;
+  private guides: DragGuides;
+  private root: HTMLElement;
 
   constructor(root: HTMLElement) {
+    this.root = root;
     const viewport = el('div', { class: 'viewport' });
     const overlay = el('div', { class: 'overlay' });
     root.append(viewport, overlay);
@@ -76,9 +81,11 @@ export class App {
     this.sceneManager = sm;
     this.pitch = new Pitch(sm.scene);
     this.cameraRig = new CameraRig(sm.camera, sm.renderer.domElement, this.tweens);
+    this.pov = new PovCamera(this.cameraRig, sm.camera);
     this.pieces = new PiecesView(sm.scene, this.store);
     this.snapGrid = new SnapGrid(sm.scene);
     const guides = new DragGuides(sm.scene);
+    this.guides = guides;
     const tmp = new Vector3();
     this.drawings = new DrawingLayer(sm.scene, this.store, (a) => {
       if (a.kind === 'point') return { x: a.x, z: a.z };
@@ -117,6 +124,7 @@ export class App {
       drawings: this.drawings,
       drag,
       selection: this.selection,
+      requestPov: (id) => this.enterPov(id),
       requestNote: (at, anchor, existing) =>
         noteEditor.open(at.clientX, at.clientY, existing?.text ?? '', (text) =>
           this.controller.saveNote(anchor, text, existing?.id),
@@ -162,20 +170,44 @@ export class App {
     });
     this.snapGrid.setVisible(this.store.state.settings.snap);
 
+    const povTmp = new Vector3();
     sm.onFrame((dt, time) => {
       this.tweens.update(dt);
       this.cameraRig.update(dt);
       player.update(dt);
-      this.pieces.update(dt, time);
+      this.pieces.update(dt, time, sm.camera.position);
+      const povId = this.pov.active;
+      if (povId) this.pov.follow(this.pieces.worldPosition(povId, povTmp));
       this.drawings.update();
     });
     sm.start();
   }
 
+  /** Camera at the player's eye height, looking in his attack direction. */
+  private enterPov(id: string): void {
+    const p = this.store.state.players.find((pl) => pl.id === id);
+    const pos = this.pieces.worldPosition(id, new Vector3());
+    if (!p || !pos) return;
+    this.pieces.setPovPlayer(id);
+    this.pov.enter(id, pos, p.team === 'home' ? 1 : -1);
+  }
+
+  private exitPov(): boolean {
+    if (!this.pov.exit()) return false;
+    this.pieces.setPovPlayer(null);
+    return true;
+  }
+
   private wireCamera(): void {
     const { bus, cameraRig } = this;
     cameraRig.setAutoRotateListener((on) => bus.emit('camera:autoRotateChanged', on));
-    bus.on('camera:preset', (id) => cameraRig.goToPreset(id));
+    bus.on('camera:preset', (id) => {
+      if (this.pov.active) {
+        this.pov.release();
+        this.pieces.setPovPlayer(null);
+      }
+      cameraRig.goToPreset(id);
+    });
     bus.on('camera:toggleAutoRotate', () => cameraRig.toggleAutoRotate());
     bus.on('app:toggleFullscreen', () => {
       if (document.fullscreenElement) void document.exitFullscreen();
@@ -205,7 +237,12 @@ export class App {
       when: (e) => !(e.target instanceof Element && e.target.closest('button, select, summary, a')),
       handler: () => player.toggle(),
     });
-    shortcuts.register({ key: 'Escape', handler: () => this.tool.escape() });
+    shortcuts.register({
+      key: 'Escape',
+      handler: () => {
+        if (!this.exitPov()) this.tool.escape();
+      },
+    });
     shortcuts.register({ key: 'a', ctrl: true, handler: () => this.selection.selectActiveTeam() });
     shortcuts.register({ key: 'g', handler: () => controller.toggleSnap() });
     shortcuts.register({ key: 'l', handler: () => controller.toggleLabels() });
@@ -221,5 +258,20 @@ export class App {
     const del = () => controller.removeSelectedDrawing();
     shortcuts.register({ key: 'Delete', handler: del });
     shortcuts.register({ key: 'Backspace', handler: del });
+  }
+
+  /** Tears everything down (GPU resources, listeners, DOM). */
+  dispose(): void {
+    this.shortcuts.dispose();
+    this.tool.dispose();
+    this.selection.dispose();
+    this.drawings.dispose();
+    this.pieces.dispose();
+    this.snapGrid.dispose();
+    this.guides.dispose();
+    this.pitch.dispose();
+    this.cameraRig.dispose();
+    this.sceneManager.dispose();
+    this.root.replaceChildren();
   }
 }
