@@ -1,13 +1,16 @@
+import { Vector3 } from 'three';
 import { EventBus } from '../core/events';
 import { TweenManager } from '../core/tween';
 import { DragController } from '../interaction/DragController';
 import { Picker } from '../interaction/Picker';
 import { SelectionController } from '../interaction/SelectionController';
 import { ShortcutManager } from '../interaction/shortcuts';
+import { TOOL_KEYS } from '../interaction/toolKeys';
 import { ToolController } from '../interaction/ToolController';
 import { CameraRig } from '../scene/CameraRig';
 import { CAMERA_PRESETS } from '../scene/cameraPresets';
 import { DragGuides } from '../scene/DragGuides';
+import { DrawingLayer } from '../scene/drawings/DrawingLayer';
 import { PiecesView } from '../scene/PiecesView';
 import { Pitch } from '../scene/Pitch';
 import { SceneManager } from '../scene/SceneManager';
@@ -18,6 +21,7 @@ import type { AppState } from '../state/schema';
 import { Store } from '../state/store';
 import { CameraControls } from '../ui/CameraControls';
 import { HelpModal } from '../ui/HelpModal';
+import { NoteEditor } from '../ui/NoteEditor';
 import { Sidebar } from '../ui/Sidebar';
 import { Toolbar } from '../ui/Toolbar';
 import { Controller } from './Controller';
@@ -36,6 +40,7 @@ export class App {
   readonly pitch: Pitch;
   readonly pieces: PiecesView;
   readonly snapGrid: SnapGrid;
+  readonly drawings: DrawingLayer;
   readonly shortcuts = new ShortcutManager();
   readonly tool: ToolController;
   readonly selection: SelectionController;
@@ -54,6 +59,12 @@ export class App {
     this.pieces = new PiecesView(sm.scene, this.store);
     this.snapGrid = new SnapGrid(sm.scene);
     const guides = new DragGuides(sm.scene);
+    const tmp = new Vector3();
+    this.drawings = new DrawingLayer(sm.scene, this.store, (a) => {
+      if (a.kind === 'point') return { x: a.x, z: a.z };
+      const p = this.pieces.worldPosition(a.id, tmp);
+      return p ? { x: p.x, z: p.z } : null;
+    });
 
     const picker = new Picker(sm.camera, sm.renderer.domElement);
     this.selection = new SelectionController(this.store, picker, viewport);
@@ -64,7 +75,21 @@ export class App {
       guides,
       this.cameraRig.controls,
     );
-    this.tool = new ToolController(viewport, this.store, picker, this.pieces, drag, this.selection);
+    const noteEditor = new NoteEditor();
+    this.tool = new ToolController({
+      el: viewport,
+      store: this.store,
+      controller: this.controller,
+      picker,
+      pieces: this.pieces,
+      drawings: this.drawings,
+      drag,
+      selection: this.selection,
+      requestNote: (at, anchor, existing) =>
+        noteEditor.open(at.clientX, at.clientY, existing?.text ?? '', (text) =>
+          this.controller.saveNote(anchor, text, existing?.id),
+        ),
+    });
 
     drag.onCommit = ({ before, after }) => this.controller.recordMove(before, after);
 
@@ -77,6 +102,7 @@ export class App {
       this.sidebar.openButton,
       toolbar.root,
       cameraControls.root,
+      noteEditor.root,
       this.help.root,
     );
 
@@ -92,6 +118,7 @@ export class App {
       this.tweens.update(dt);
       this.cameraRig.update(dt);
       this.pieces.update(dt, time);
+      this.drawings.update();
     });
     sm.start();
   }
@@ -130,5 +157,11 @@ export class App {
       handler: () => this.bus.emit('app:toggleFullscreen', undefined),
     });
     shortcuts.register({ key: 't', handler: () => controller.toggleActiveTeam() });
+    for (const { id, key } of TOOL_KEYS) {
+      shortcuts.register({ key, ctrl: false, handler: () => controller.setTool(id) });
+    }
+    const del = () => controller.removeSelectedDrawing();
+    shortcuts.register({ key: 'Delete', handler: del });
+    shortcuts.register({ key: 'Backspace', handler: del });
   }
 }

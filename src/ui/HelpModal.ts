@@ -6,6 +6,14 @@ type Row = [keys: string[], label: string];
 const h = tr.help;
 const GROUPS: [string, Row[]][] = [
   [
+    h.groups.tools,
+    [
+      [['V', 'A', 'P', 'D', 'Z', 'N', 'E'], h.items.tools],
+      [['Alt'], h.items.curve],
+      [['Del'], h.items.deleteDrawing],
+    ],
+  ],
+  [
     h.groups.camera,
     [
       [['1', '–', '5'], h.items.presets],

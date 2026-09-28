@@ -2,7 +2,9 @@ import type { Controller } from '../app/Controller';
 import { tr } from '../i18n/tr';
 import type { AppState } from '../state/schema';
 import { el, icon } from './dom';
+import { DrawingSection } from './sidebar/DrawingSection';
 import { FormationSection } from './sidebar/FormationSection';
+import { InstructionSection } from './sidebar/InstructionSection';
 import { PlayerList } from './sidebar/PlayerList';
 import { TeamSection } from './sidebar/TeamSection';
 
@@ -31,12 +33,16 @@ export class Sidebar {
   private team: TeamSection;
   private formations: FormationSection;
   private players: PlayerList;
+  private instructions: InstructionSection;
+  private drawing: DrawingSection;
   private mobile = window.matchMedia(MOBILE_QUERY);
 
   constructor(ctl: Controller) {
     this.team = new TeamSection(ctl);
     this.formations = new FormationSection(ctl);
     this.players = new PlayerList(ctl);
+    this.instructions = new InstructionSection(ctl);
+    this.drawing = new DrawingSection(ctl);
 
     const closeBtn = el(
       'button',
@@ -54,7 +60,9 @@ export class Sidebar {
     this.panel = el('div', { class: 'sidebar-body', id: 'sidebar-body' }, [
       ...this.team.elements,
       ...this.formations.elements,
+      ...this.instructions.elements,
       ...this.players.elements,
+      ...this.drawing.elements,
     ]);
 
     this.root = el('aside', { class: 'panel sidebar', 'aria-label': tr.sidebar.label }, [
@@ -111,5 +119,7 @@ export class Sidebar {
     this.team.render(s);
     this.formations.render(s);
     this.players.render(s);
+    this.instructions.render(s);
+    this.drawing.render(s);
   }
 }

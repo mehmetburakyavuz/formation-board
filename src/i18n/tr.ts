@@ -1,4 +1,5 @@
 import type { Role } from '../data/formations';
+import type { InstructionId } from '../data/instructions';
 
 /** Short Turkish position abbreviations shown on labels when a player has no name. */
 const roles: Record<Role, string> = {
@@ -28,6 +29,18 @@ const roles: Record<Role, string> = {
   RS: 'SĞF',
 };
 
+const instructions: Record<InstructionId, string> = {
+  overlap: 'Bindirme yap',
+  cutInside: 'İçe kat',
+  pressHigh: 'Önde pres',
+  holdPosition: 'Geride kal',
+  manMark: 'Adam adama',
+  runInBehind: 'Derinlemesine koşu',
+  stayWide: 'Kanadı genişlet',
+  demandBall: 'Topu iste',
+  freeRole: 'Serbest rol',
+};
+
 /** All user-facing strings (Turkish). */
 export const tr = {
   appTitle: '3D Taktik Tahtası',
@@ -37,6 +50,38 @@ export const tr = {
     away: 'Deplasman',
   },
   roles,
+  instructions,
+  tools: {
+    label: 'Direktif araçları',
+    names: {
+      select: 'Seç / Taşı',
+      run: 'Koşu oku',
+      pass: 'Pas oku',
+      dribble: 'Top sürme',
+      zone: 'Bölge',
+      note: 'Metin notu',
+      eraser: 'Silgi',
+    },
+  },
+  notes: {
+    label: 'Not metni',
+    placeholder: 'Not yazın…',
+    save: 'Ekle',
+  },
+  drawing: {
+    section: 'Çizim',
+    arrowColors: 'Ok renkleri',
+    zone: 'Bölge',
+    zoneColor: 'Bölge rengi',
+    zoneShapes: { rect: 'Dikdörtgen', ellipse: 'Elips' },
+    clear: 'Tüm çizimleri sil',
+    hint: 'Eğri ok için sürüklerken Alt tuşunu basılı tutun. Seçili okun ortasındaki tutamaçla eğriyi ayarlayın.',
+  },
+  instructionsSection: {
+    title: 'Talimatlar',
+    none: 'Talimat vermek için sahadan veya listeden oyuncu seçin.',
+    multi: (n: number): string => `${n} oyuncu seçili`,
+  },
   sidebar: {
     label: 'Taktik paneli',
     title: 'Taktik Tahtası',
@@ -80,6 +125,7 @@ export const tr = {
     title: 'Klavye kısayolları',
     close: 'Kapat',
     groups: {
+      tools: 'Direktif araçları',
       camera: 'Kamera',
       edit: 'Düzenleme',
       selection: 'Seçim',
@@ -100,6 +146,9 @@ export const tr = {
       selectAll: 'Aktif takımın tamamını seç',
       clear: 'Seçimi temizle / iptal',
       help: 'Bu pencereyi aç',
+      tools: 'Seç, koşu, pas, top sürme, bölge, not, silgi',
+      curve: 'Eğri ok (sürüklerken)',
+      deleteDrawing: 'Seçili çizimi sil',
       tab: 'Panelde gezin',
     },
     keys: {

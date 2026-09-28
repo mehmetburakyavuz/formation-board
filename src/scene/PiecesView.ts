@@ -29,6 +29,7 @@ export class PiecesView {
     return {
       number: p.number,
       label: p.name || tr.roles[p.role],
+      badges: p.instructions.map((i) => tr.instructions[i]),
       bodyColor: isGk ? team.gkColor : team.color,
       numberColor: isGk ? '#111111' : team.numberColor,
       ringColor: team.color,

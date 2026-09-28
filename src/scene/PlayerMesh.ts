@@ -15,6 +15,8 @@ export type PlayerVisibility = 'normal' | 'dim' | 'hidden';
 export interface PlayerAppearance {
   number: number;
   label: string;
+  /** Instruction badge texts shown under the label. */
+  badges: readonly string[];
   bodyColor: string;
   numberColor: string;
   ringColor: string;
@@ -51,6 +53,8 @@ export class PlayerMesh {
   private label: CSS2DObject;
   private labelNum: HTMLSpanElement;
   private labelName: HTMLSpanElement;
+  private badges: HTMLDivElement;
+  private badgeKey = '';
   private appearance: PlayerAppearance | null = null;
 
   private selected = false;
@@ -90,14 +94,19 @@ export class PlayerMesh {
     this.hit = new THREE.Mesh(assets.hitGeo, assets.hitMat);
     this.hit.userData.pieceId = id;
 
-    const labelEl = document.createElement('div');
-    labelEl.className = 'player-label';
+    const tag = document.createElement('div');
+    tag.className = 'player-tag';
+    const pill = document.createElement('div');
+    pill.className = 'player-label';
     this.labelNum = document.createElement('span');
     this.labelNum.className = 'num';
     this.labelName = document.createElement('span');
     this.labelName.className = 'name';
-    labelEl.append(this.labelNum, this.labelName);
-    this.label = new CSS2DObject(labelEl);
+    pill.append(this.labelNum, this.labelName);
+    this.badges = document.createElement('div');
+    this.badges.className = 'badges';
+    tag.append(pill, this.badges);
+    this.label = new CSS2DObject(tag);
     this.label.position.y = FIGURE_HEIGHT + 0.35;
     this.label.center.set(0.5, 1);
 
@@ -154,6 +163,18 @@ export class PlayerMesh {
     this.labelName.textContent = a.label;
     this.labelNum.style.background = a.bodyColor;
     this.labelNum.style.color = a.numberColor;
+    const badgeKey = a.badges.join('|');
+    if (badgeKey !== this.badgeKey) {
+      this.badgeKey = badgeKey;
+      this.badges.replaceChildren(
+        ...a.badges.map((text) => {
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.textContent = text;
+          return b;
+        }),
+      );
+    }
   }
 
   setLabelVisible(visible: boolean): void {

@@ -54,7 +54,18 @@ export function createInitialState(): AppState {
     ball: { x: 0, z: 0 },
     activeTeam: 'home',
     selection: [],
-    settings: { snap: false, showLabels: true, ballScale: 1.5, opponentMode: 'normal' },
+    settings: {
+      snap: false,
+      showLabels: true,
+      ballScale: 1.5,
+      opponentMode: 'normal',
+      arrowColors: { run: '#ffd23f', pass: '#ffffff', dribble: '#ff8c1a' },
+      zoneColor: '#ff4d6d',
+      zoneShape: 'rect',
+    },
     customFormations: loadCustomFormations(),
+    drawings: [],
+    tool: 'select',
+    selectedDrawing: null,
   };
 }

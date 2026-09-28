@@ -1,185 +1,142 @@
-import { isInteractive, setSelection } from '../state/actions';
-import type { AppState, PieceId } from '../state/schema';
-import type { Store } from '../state/store';
+import type { Controller } from '../app/Controller';
+import type { DrawingLayer } from '../scene/drawings/DrawingLayer';
 import type { PiecesView } from '../scene/PiecesView';
+import type { Anchor, AppState, NoteDrawing, ToolId } from '../state/schema';
+import type { Store } from '../state/store';
 import type { DragController } from './DragController';
 import type { Picker } from './Picker';
 import type { SelectionController } from './SelectionController';
+import { ArrowTool } from './tools/ArrowTool';
+import { EraserTool, NoteTool } from './tools/ClickTools';
+import { SelectTool } from './tools/SelectTool';
+import { hitDrawing, type ScreenPoint, type Tool, type ToolContext } from './tools/Tool';
+import { ZoneTool } from './tools/ZoneTool';
 
-const CLICK_TOLERANCE_PX = 5;
-
-interface PendingClick {
-  pointerId: number;
-  x: number;
-  y: number;
-  /** Piece pressed without shift while already selected: on a pure click, select only it. */
-  narrowTo: PieceId | null;
-  /** Pressed on empty ground: on a pure click, clear the selection. */
-  clearOnClick: boolean;
+export interface ToolControllerDeps {
+  el: HTMLElement;
+  store: Store<AppState>;
+  controller: Controller;
+  picker: Picker;
+  pieces: PiecesView;
+  drawings: DrawingLayer;
+  drag: DragController;
+  selection: SelectionController;
+  requestNote(at: ScreenPoint, anchor: Anchor, existing?: NoteDrawing): void;
 }
 
 /**
- * Routes pointer events for the active tool (M2: select/move only).
- * Listens in the capture phase on the viewport so it runs before OrbitControls
- * and can stop the camera from ever seeing a press on a piece.
+ * Routes pointer events to the active tool. Listens in the capture phase on the
+ * viewport so it runs before OrbitControls; a consumed press never reaches the camera.
  */
 export class ToolController {
-  private pending: PendingClick | null = null;
+  private tools: Record<ToolId, Tool>;
+  private current: Tool;
+  private ctx: ToolContext;
+  private el: HTMLElement;
 
-  constructor(
-    private el: HTMLElement,
-    private store: Store<AppState>,
-    private picker: Picker,
-    private view: PiecesView,
-    private drag: DragController,
-    private selection: SelectionController,
-  ) {
+  constructor(deps: ToolControllerDeps) {
+    const el = deps.el;
+    this.el = el;
+    this.ctx = {
+      ...deps,
+      capture: (e) => {
+        try {
+          el.setPointerCapture(e.pointerId);
+        } catch {
+          // Pointer already released (or synthetic); the gesture works without capture.
+        }
+      },
+      release: (e) => {
+        if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      },
+      setCursor: (c) => {
+        el.style.cursor = c;
+      },
+    };
+    this.tools = {
+      select: new SelectTool(this.ctx),
+      run: new ArrowTool(this.ctx, 'run'),
+      pass: new ArrowTool(this.ctx, 'pass'),
+      dribble: new ArrowTool(this.ctx, 'dribble'),
+      zone: new ZoneTool(this.ctx),
+      note: new NoteTool(this.ctx),
+      eraser: new EraserTool(this.ctx),
+    };
+    this.current = this.tools[deps.store.state.tool];
+    deps.store.subscribe((s, prev) => {
+      if (s.tool !== prev.tool) this.switchTo(s.tool);
+    });
+
     el.addEventListener('pointerdown', this.onDown, { capture: true });
     el.addEventListener('pointermove', this.onMove, { capture: true });
     el.addEventListener('pointerup', this.onUp, { capture: true });
     el.addEventListener('pointercancel', this.onCancel, { capture: true });
     el.addEventListener('pointerleave', this.onLeave);
+    el.addEventListener('dblclick', this.onDblClick);
   }
 
-  private pickables() {
-    const s = this.store.state;
-    return this.view.pickables((id) => isInteractive(s, id));
+  private switchTo(id: ToolId): void {
+    this.current.cancel();
+    this.current = this.tools[id];
+    this.ctx.pieces.setHovered(null);
+    this.ctx.setCursor(id === 'select' ? '' : 'crosshair');
   }
 
   private onDown = (e: PointerEvent): void => {
-    // A second finger during a drag/box gesture must not reach the camera.
-    if (this.drag.active || this.selection.boxActive) {
+    // A second finger during a gesture must not reach the camera.
+    if (this.current.active) {
       e.stopImmediatePropagation();
       return;
     }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-
-    const id = this.picker.pickPiece(e, this.pickables());
-    if (id) {
+    if (this.current.down(e)) {
       e.stopImmediatePropagation();
       e.preventDefault();
-      let narrowTo: PieceId | null = null;
-      if (e.shiftKey) {
-        if (!this.selection.toggle(id)) return; // deselected: nothing to drag
-      } else if (this.selection.isSelected(id)) {
-        narrowTo = id;
-      } else {
-        this.selection.select([id]);
-      }
-      if (this.drag.begin(e, id, [...this.store.state.selection])) {
-        this.capture(e);
-        this.setCursor('grabbing');
-        this.view.setHovered(null);
-      }
-      this.pending = {
-        pointerId: e.pointerId,
-        x: e.clientX,
-        y: e.clientY,
-        narrowTo,
-        clearOnClick: false,
-      };
-      return;
     }
-
-    if (e.shiftKey) {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      this.selection.beginBox(e);
-      this.capture(e);
-      return;
-    }
-    // Empty ground: let OrbitControls rotate; a pure click clears the selection.
-    this.pending = {
-      pointerId: e.pointerId,
-      x: e.clientX,
-      y: e.clientY,
-      narrowTo: null,
-      clearOnClick: true,
-    };
   };
 
   private onMove = (e: PointerEvent): void => {
-    if (this.pending && e.pointerId === this.pending.pointerId) {
-      const d = Math.hypot(e.clientX - this.pending.x, e.clientY - this.pending.y);
-      if (d > CLICK_TOLERANCE_PX) this.pending = null;
+    this.current.move(e);
+    if (!this.current.active && e.buttons === 0 && e.pointerType !== 'touch') {
+      this.current.hover?.(e);
     }
-    if (this.drag.active) {
-      if (e.pointerId === this.drag.pointerId) this.drag.move(e);
-      return;
-    }
-    if (this.selection.boxActive) {
-      this.selection.moveBox(e);
-      return;
-    }
-    if (e.buttons === 0 && e.pointerType !== 'touch') this.updateHover(e);
   };
 
   private onUp = (e: PointerEvent): void => {
-    if (this.drag.active && e.pointerId === this.drag.pointerId) {
-      this.drag.end(e);
-      this.releaseCapture(e);
-      this.updateHover(e);
-    } else if (this.selection.boxActive) {
-      this.selection.endBox(e);
-      this.releaseCapture(e);
-    }
-    const p = this.pending;
-    if (p && p.pointerId === e.pointerId) {
-      if (p.narrowTo) this.selection.select([p.narrowTo]);
-      else if (p.clearOnClick && !e.shiftKey) this.selection.clear();
-      this.pending = null;
-    }
+    this.current.up(e);
   };
 
   private onCancel = (e: PointerEvent): void => {
-    if (this.drag.active && e.pointerId === this.drag.pointerId) this.drag.cancel();
-    if (this.selection.boxActive) this.selection.cancelBox();
-    this.pending = null;
-    this.releaseCapture(e);
-    this.setCursor('');
+    this.current.cancel();
+    this.ctx.release(e);
   };
 
   private onLeave = (): void => {
-    if (!this.drag.active) {
-      this.view.setHovered(null);
-      this.setCursor('');
-    }
+    if (!this.current.active) this.ctx.pieces.setHovered(null);
   };
 
-  private capture(e: PointerEvent): void {
-    try {
-      this.el.setPointerCapture(e.pointerId);
-    } catch {
-      // Pointer already released (or synthetic); gesture still works without capture.
-    }
-  }
+  /** Double click on a note (select tool) edits its text. */
+  private onDblClick = (e: MouseEvent): void => {
+    if (this.ctx.store.state.tool !== 'select') return;
+    const id = hitDrawing(this.ctx, e);
+    const d = this.ctx.store.state.drawings.find((x) => x.id === id);
+    if (d?.type === 'note') this.ctx.requestNote(e, d.anchor, d);
+  };
 
-  private releaseCapture(e: PointerEvent): void {
-    if (this.el.hasPointerCapture(e.pointerId)) this.el.releasePointerCapture(e.pointerId);
-  }
-
-  private updateHover(e: PointerEvent): void {
-    const id = this.picker.pickPiece(e, this.pickables());
-    this.view.setHovered(id);
-    this.setCursor(id ? 'grab' : '');
-  }
-
-  private setCursor(c: string): void {
-    this.el.style.cursor = c;
-  }
-
-  /** Escape: abort gestures first, otherwise clear the selection. */
+  /** Escape: abort the current gesture, else clear selections. */
   escape(): void {
-    if (this.drag.active) this.drag.cancel();
-    else if (this.selection.boxActive) this.selection.cancelBox();
-    else this.store.update((s) => setSelection(s, []));
+    if (this.current.escape?.()) return;
+    this.ctx.selection.clear();
+    this.ctx.controller.selectDrawing(null);
   }
 
   dispose(): void {
-    this.el.removeEventListener('pointerdown', this.onDown, { capture: true });
-    this.el.removeEventListener('pointermove', this.onMove, { capture: true });
-    this.el.removeEventListener('pointerup', this.onUp, { capture: true });
-    this.el.removeEventListener('pointercancel', this.onCancel, { capture: true });
-    this.el.removeEventListener('pointerleave', this.onLeave);
+    const el = this.el;
+    el.removeEventListener('pointerdown', this.onDown, { capture: true });
+    el.removeEventListener('pointermove', this.onMove, { capture: true });
+    el.removeEventListener('pointerup', this.onUp, { capture: true });
+    el.removeEventListener('pointercancel', this.onCancel, { capture: true });
+    el.removeEventListener('pointerleave', this.onLeave);
+    el.removeEventListener('dblclick', this.onDblClick);
   }
 }

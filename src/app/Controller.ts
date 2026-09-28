@@ -12,7 +12,28 @@ import {
 import { findFormation, formationFromTeam } from '../state/formationOps';
 import type { History } from '../state/history';
 import { saveCustomFormations } from '../state/persistence';
-import type { AppState, OpponentMode, PieceId, TeamId } from '../state/schema';
+import type { InstructionId } from '../data/instructions';
+import {
+  newDrawingId,
+  addDrawingCommand,
+  clearDrawingsCommand,
+  instructionsCommand,
+  removeDrawingCommand,
+  updateDrawingCommand,
+  type InstructionChange,
+} from '../state/drawingOps';
+import type {
+  Anchor,
+  AppState,
+  ArrowStyle,
+  Drawing,
+  OpponentMode,
+  PieceId,
+  Settings,
+  TeamId,
+  ToolId,
+  ZoneShape,
+} from '../state/schema';
 import type { Store } from '../state/store';
 import type { Positions } from '../state/actions';
 
@@ -130,6 +151,110 @@ export class Controller {
 
   setOpponentMode(mode: OpponentMode): void {
     this.store.update((s) => ({ ...s, settings: { ...s.settings, opponentMode: mode } }));
+  }
+
+  // --- Tools & drawings ------------------------------------------------------
+
+  setTool(tool: ToolId): void {
+    this.store.update((s) =>
+      s.tool === tool
+        ? s
+        : { ...s, tool, selectedDrawing: tool === 'select' ? s.selectedDrawing : null },
+    );
+  }
+
+  addDrawing(d: Drawing): void {
+    this.history.execute(addDrawingCommand(d));
+  }
+
+  removeDrawing(id: string): void {
+    const cmd = removeDrawingCommand(this.store.state, id);
+    if (cmd) this.history.execute(cmd);
+  }
+
+  removeSelectedDrawing(): boolean {
+    const id = this.store.state.selectedDrawing;
+    if (!id) return false;
+    this.removeDrawing(id);
+    return true;
+  }
+
+  clearDrawings(): void {
+    const cmd = clearDrawingsCommand(this.store.state);
+    if (cmd) this.history.execute(cmd);
+  }
+
+  selectDrawing(id: string | null): void {
+    this.store.update((s) => (s.selectedDrawing === id ? s : { ...s, selectedDrawing: id }));
+  }
+
+  /** Live, unrecorded update while a handle is dragged. */
+  previewDrawing(d: Drawing): void {
+    this.store.update((s) => ({
+      ...s,
+      drawings: s.drawings.map((x) => (x.id === d.id ? d : x)),
+    }));
+  }
+
+  /** Records an already-previewed edit as one undo step. */
+  recordDrawingEdit(before: Drawing, after: Drawing): void {
+    if (before === after) return;
+    this.history.record(updateDrawingCommand(before, after));
+  }
+
+  /** Creates a note, or updates/deletes (empty text) an existing one. */
+  saveNote(anchor: Anchor, text: string, existingId?: string): void {
+    const trimmed = text.trim();
+    const s = this.store.state;
+    const existing = s.drawings.find((d) => d.id === existingId);
+    if (existing?.type === 'note') {
+      if (!trimmed) this.removeDrawing(existing.id);
+      else if (trimmed !== existing.text) {
+        this.history.execute(updateDrawingCommand(existing, { ...existing, text: trimmed }));
+      }
+      return;
+    }
+    if (!trimmed) return;
+    this.addDrawing({ id: newDrawingId(), type: 'note', anchor, text: trimmed });
+  }
+
+  private updateSettings(patch: Partial<Settings>): void {
+    this.store.update((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
+  }
+
+  setArrowColor(style: ArrowStyle, color: string): void {
+    const colors = this.store.state.settings.arrowColors;
+    this.updateSettings({ arrowColors: { ...colors, [style]: color } });
+  }
+
+  setZoneColor(color: string): void {
+    this.updateSettings({ zoneColor: color });
+  }
+
+  setZoneShape(shape: ZoneShape): void {
+    this.updateSettings({ zoneShape: shape });
+  }
+
+  /**
+   * Toggles an instruction on the selected players of the active team: if every selected
+   * player has it, it is removed from all, otherwise added to all. One undo step.
+   */
+  toggleInstruction(instr: InstructionId): void {
+    const s = this.store.state;
+    const sel = new Set(s.selection);
+    const targets = s.players.filter((p) => sel.has(p.id));
+    if (targets.length === 0) return;
+    const allHave = targets.every((p) => p.instructions.includes(instr));
+    const changes: InstructionChange[] = targets.map((p) => ({
+      id: p.id,
+      before: p.instructions,
+      after: allHave
+        ? p.instructions.filter((i) => i !== instr)
+        : p.instructions.includes(instr)
+          ? p.instructions
+          : [...p.instructions, instr],
+    }));
+    this.history.execute(instructionsCommand(changes));
   }
 
   undo(): void {
