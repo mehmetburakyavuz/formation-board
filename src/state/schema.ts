@@ -1,5 +1,6 @@
-import type { Role } from '../data/formations';
-import type { Side } from '../core/coords';
+import type { Formation, Role } from '../data/formations';
+import type { GroundPoint, Side } from '../core/coords';
+import type { Phase } from '../logic/phases';
 
 export type TeamId = Side;
 
@@ -14,9 +15,11 @@ export interface PlayerState {
   /** Empty name means the role abbreviation is shown instead. */
   name: string;
   role: Role;
-  /** World ground position (metres). */
+  /** Current world ground position (metres) = `layouts[team.phase]`. */
   x: number;
   z: number;
+  /** Positions per game phase (in / out of possession). */
+  layouts: Record<Phase, GroundPoint>;
   instructions: string[];
 }
 
@@ -27,6 +30,7 @@ export interface TeamState {
   numberColor: string;
   gkColor: string;
   formationId: string;
+  phase: Phase;
 }
 
 export interface BallState {
@@ -48,4 +52,6 @@ export interface AppState {
   activeTeam: TeamId;
   selection: PieceId[];
   settings: Settings;
+  /** User-saved formations (also persisted separately in localStorage). */
+  customFormations: Formation[];
 }

@@ -1,6 +1,7 @@
-import { normalizedToWorld } from '../core/coords';
 import { DEFAULT_FORMATION_ID, DEFAULT_NUMBERS, getFormation } from '../data/formations';
 import { tr } from '../i18n/tr';
+import { slotLayouts } from './formationOps';
+import { loadCustomFormations } from './persistence';
 import type { AppState, PlayerState, TeamId, TeamState } from './schema';
 
 export function createSquad(team: TeamId, formationId: string): PlayerState[] {
@@ -15,15 +16,16 @@ export function createSquad(team: TeamId, formationId: string): PlayerState[] {
       number = spare;
     }
     used.add(number);
-    const { x, z } = normalizedToWorld(slot, team);
+    const layouts = slotLayouts(slot, team);
     return {
       id: `${team}-${i}`,
       team,
       number,
       name: '',
       role: slot.role,
-      x,
-      z,
+      x: layouts.attack.x,
+      z: layouts.attack.z,
+      layouts,
       instructions: [],
     };
   });
@@ -38,6 +40,7 @@ function createTeam(id: TeamId): TeamState {
     numberColor: '#ffffff',
     gkColor: home ? '#f4c20d' : '#22b573',
     formationId: DEFAULT_FORMATION_ID,
+    phase: 'attack',
   };
 }
 
@@ -52,5 +55,6 @@ export function createInitialState(): AppState {
     activeTeam: 'home',
     selection: [],
     settings: { snap: false, showLabels: true, ballScale: 1.5 },
+    customFormations: loadCustomFormations(),
   };
 }

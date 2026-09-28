@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { tr } from '../i18n/tr';
-import type { Store } from '../state/store';
+import type { Store, UpdateMeta } from '../state/store';
 import { BALL_ID, type AppState, type PieceId, type PlayerState } from '../state/schema';
 import { Ball } from './Ball';
 import { PlayerAssets } from './PlayerAssets';
@@ -19,8 +19,8 @@ export class PiecesView {
     this.group.name = 'pieces';
     this.group.add(this.ball.root);
     scene.add(this.group);
-    this.sync(store.state, null);
-    this.unsubscribe = store.subscribe((s, prev) => this.sync(s, prev));
+    this.sync(store.state, null, {});
+    this.unsubscribe = store.subscribe((s, prev, meta) => this.sync(s, prev, meta));
   }
 
   private appearance(p: PlayerState, s: AppState): PlayerAppearance {
@@ -36,7 +36,7 @@ export class PiecesView {
     };
   }
 
-  private sync(s: AppState, prev: AppState | null): void {
+  private sync(s: AppState, prev: AppState | null, meta: UpdateMeta): void {
     const teamsChanged = !prev || prev.teams !== s.teams;
     const seen = new Set<PieceId>();
     s.players.forEach((p, i) => {
@@ -51,7 +51,12 @@ export class PiecesView {
         this.group.add(mesh.root);
       }
       if (isNew || before !== p || teamsChanged) {
-        mesh.setPosition(p.x, p.z);
+        const moved = !before || before.x !== p.x || before.z !== p.z;
+        if (isNew) mesh.setPosition(p.x, p.z);
+        else if (moved && meta.animateMs) {
+          // Small random stagger so a re-shape looks like players running, not a block.
+          mesh.glideTo(p.x, p.z, meta.animateMs, Math.random() * 120);
+        } else if (moved) mesh.setPosition(p.x, p.z);
         mesh.setAppearance(this.appearance(p, s));
       }
     });

@@ -3,12 +3,16 @@ import type { GroundPoint } from '../core/coords';
 
 export type Positions = ReadonlyMap<PieceId, GroundPoint>;
 
-/** Pure state transitions. M3 wraps the undoable ones into history commands. */
+/** Pure state transitions. Undoable ones are wrapped into history commands (see commands.ts). */
 export function movePieces(s: AppState, positions: Positions): AppState {
   if (positions.size === 0) return s;
   const players = s.players.map((p) => {
     const np = positions.get(p.id);
-    return np && (np.x !== p.x || np.z !== p.z) ? { ...p, x: np.x, z: np.z } : p;
+    if (!np || (np.x === p.x && np.z === p.z)) return p;
+    // Manual moves edit the layout of the team's current phase only.
+    const phase = s.teams[p.team].phase;
+    const layouts = { ...p.layouts, [phase]: { x: np.x, z: np.z } };
+    return { ...p, x: np.x, z: np.z, layouts };
   });
   const b = positions.get(BALL_ID);
   const ball = b ? { x: b.x, z: b.z } : s.ball;

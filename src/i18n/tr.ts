@@ -37,6 +37,23 @@ export const tr = {
     away: 'Deplasman',
   },
   roles,
+  sidebar: {
+    label: 'Taktik paneli',
+    team: 'Takım',
+    formation: 'Formasyon',
+    phase: 'Oyun evresi',
+    phases: { attack: 'Hücum', defence: 'Savunma' },
+    phaseHint: 'Topa sahipken / top rakipteyken ayrı dizilim',
+    customGroup: 'Özel formasyonlar',
+    saveCustom: 'Özel formasyon olarak kaydet',
+    customPlaceholder: 'Formasyon adı',
+    save: 'Kaydet',
+    deleteCustom: (name: string): string => `${name} formasyonunu sil`,
+  },
+  history: {
+    undo: 'Geri al',
+    redo: 'İleri al',
+  },
   metres: (m: number): string => `${m.toFixed(1)} m`,
   camera: {
     groupLabel: 'Kamera açıları',

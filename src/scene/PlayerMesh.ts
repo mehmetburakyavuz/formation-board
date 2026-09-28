@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { easing } from '../core/tween';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { BODY_CENTER_Y, FIGURE_HEIGHT, HEAD_Y, NUMBER_Y, type PlayerAssets } from './PlayerAssets';
 
@@ -13,6 +14,16 @@ export interface PlayerAppearance {
 }
 
 const LIFT_HEIGHT = 0.3;
+
+interface Glide {
+  fromX: number;
+  fromZ: number;
+  toX: number;
+  toZ: number;
+  elapsed: number;
+  delay: number;
+  duration: number;
+}
 const HOVER_SCALE = 1.05;
 
 /** Stylised player figure: capsule body, head, shirt numbers, ground ring and label. */
@@ -35,6 +46,7 @@ export class PlayerMesh {
   private lifted = false;
   private lift = 0;
   private scale = 1;
+  private glide: Glide | null = null;
 
   constructor(
     readonly id: string,
@@ -80,8 +92,38 @@ export class PlayerMesh {
     this.root.add(this.figure, this.ring, this.hit);
   }
 
+  /** Jump to a position (cancels any running glide). */
   setPosition(x: number, z: number): void {
+    this.glide = null;
     this.root.position.set(x, 0, z);
+  }
+
+  /** Glide from the current visual position to (x, z), easeInOutCubic. */
+  glideTo(x: number, z: number, durationMs: number, delayMs: number): void {
+    const { x: fx, z: fz } = this.root.position;
+    if (Math.abs(fx - x) < 1e-6 && Math.abs(fz - z) < 1e-6) {
+      this.setPosition(x, z);
+      return;
+    }
+    this.glide = {
+      fromX: fx,
+      fromZ: fz,
+      toX: x,
+      toZ: z,
+      elapsed: 0,
+      delay: delayMs,
+      duration: durationMs,
+    };
+  }
+
+  private stepGlide(dtMs: number): void {
+    const g = this.glide;
+    if (!g) return;
+    g.elapsed += dtMs;
+    const t = Math.min(1, Math.max(0, (g.elapsed - g.delay) / g.duration));
+    const k = easing.easeInOutCubic(t);
+    this.root.position.set(g.fromX + (g.toX - g.fromX) * k, 0, g.fromZ + (g.toZ - g.fromZ) * k);
+    if (t >= 1) this.glide = null;
   }
 
   setAppearance(a: PlayerAppearance): void {
@@ -129,6 +171,7 @@ export class PlayerMesh {
   }
 
   update(dtMs: number, timeMs: number): void {
+    this.stepGlide(dtMs);
     const k = 1 - Math.exp(-dtMs / 60);
     this.lift += ((this.lifted ? LIFT_HEIGHT : 0) - this.lift) * k;
     this.figure.position.y = this.lift;

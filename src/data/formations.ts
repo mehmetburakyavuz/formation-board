@@ -1,28 +1,35 @@
-export type Role =
-  | 'GK'
-  | 'LB'
-  | 'LCB'
-  | 'CB'
-  | 'RCB'
-  | 'RB'
-  | 'LWB'
-  | 'RWB'
-  | 'CDM'
-  | 'LDM'
-  | 'RDM'
-  | 'LCM'
-  | 'CM'
-  | 'RCM'
-  | 'LM'
-  | 'RM'
-  | 'LAM'
-  | 'CAM'
-  | 'RAM'
-  | 'LW'
-  | 'RW'
-  | 'LS'
-  | 'ST'
-  | 'RS';
+export const ROLES = [
+  'GK',
+  'LB',
+  'LCB',
+  'CB',
+  'RCB',
+  'RB',
+  'LWB',
+  'RWB',
+  'CDM',
+  'LDM',
+  'RDM',
+  'LCM',
+  'CM',
+  'RCM',
+  'LM',
+  'RM',
+  'LAM',
+  'CAM',
+  'RAM',
+  'LW',
+  'RW',
+  'LS',
+  'ST',
+  'RS',
+] as const;
+
+export type Role = (typeof ROLES)[number];
+
+export function isRole(v: string): v is Role {
+  return (ROLES as readonly string[]).includes(v);
+}
 
 export interface FormationSlot {
   role: Role;
