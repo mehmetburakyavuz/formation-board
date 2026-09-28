@@ -10,7 +10,9 @@ import {
   type TeamPatch,
 } from '../state/commands';
 import { findFormation, formationFromTeam } from '../state/formationOps';
+import { loadDocumentCommand, persistedOf } from '../state/document';
 import type { History } from '../state/history';
+import { createInitialState } from '../state/initialState';
 import { saveCustomFormations } from '../state/persistence';
 import type { InstructionId } from '../data/instructions';
 import {
@@ -233,6 +235,16 @@ export class Controller {
 
   setZoneShape(shape: ZoneShape): void {
     this.updateSettings({ zoneShape: shape });
+  }
+
+  /**
+   * Fresh board: teams, players, ball, drawings and scenario back to the defaults.
+   * View preferences (labels, snap, colours of the tools…) are kept. One undo step.
+   */
+  resetBoard(): void {
+    const s = this.store.state;
+    const fresh = persistedOf(createInitialState());
+    this.history.execute(loadDocumentCommand(persistedOf(s), { ...fresh, settings: s.settings }));
   }
 
   /**

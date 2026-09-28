@@ -177,6 +177,9 @@ export const tr = {
     snap: 'Izgaraya yapış',
     labels: 'Etiketleri göster',
     help: 'Klavye kısayolları',
+    reset: 'Tahtayı sıfırla',
+    resetConfirm: 'Emin misiniz? Sıfırlamak için tekrar tıklayın',
+    resetDone: 'Tahta sıfırlandı. Geri almak için Ctrl+Z.',
   },
   help: {
     title: 'Klavye kısayolları',

@@ -87,6 +87,8 @@ Top, sahibinin pas oku varsa ok boyunca koşan alıcıya gider, yoksa topu tutan
 - **JSON olarak indir / JSON dosyası yükle** ile taktikleri başka tarayıcı veya kişilerle paylaşın
   (dosyalar sürüm bilgisi taşır ve yüklenirken doğrulanır).
 - **PNG ekran görüntüsü**: mevcut kamera açısından, etiketlerle birlikte 2× çözünürlük.
+- Araç çubuğundaki kırmızı **Tahtayı sıfırla** düğmesi (iki kez tıklanır) takımları, oyuncuları, topu,
+  çizimleri ve senaryoyu varsayılana döndürür; görünüm tercihleri, kütüphane ve özel formasyonlar korunur.
 - Yükleme ve içe aktarma dahil tüm düzenlemeler `Ctrl+Z` ile geri alınabilir.
 
 ## Klavye kısayolları

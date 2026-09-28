@@ -19,6 +19,7 @@ const TOOL_ICONS: Record<ToolId, string> = {
   eraser: 'M8 20h11M4.5 15.5l9-9 5.5 5.5-8.5 8.5H9z',
 };
 const FRAME_ICON = 'M4 6h16v12H4zM8 6v12M16 6v12M12 10v4M10 12h4';
+const RESET_ICON = 'M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5';
 const HELP_ICON = 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5h.01';
 
 function iconButton(label: string, shortcut: string, d: string): HTMLButtonElement {
@@ -36,6 +37,9 @@ export interface ToolbarActions {
   onAddFrame: () => void;
   onLibrary: () => void;
   onScreenshot: () => void;
+  /** First click: asks for confirmation. */
+  onResetArmed: () => void;
+  onReset: () => void;
 }
 
 /** Top toolbar: directive tools, undo/redo, snap, labels, scenario/library, help. */
@@ -67,6 +71,8 @@ export class Toolbar {
     this.labelsBtn.addEventListener('click', () => ctl.toggleLabels());
     helpBtn.addEventListener('click', onHelp);
 
+    const resetBtn = this.resetButton(actions.onResetArmed, actions.onReset);
+
     this.toolsSlot = el('div', {
       class: 'toolbar-group',
       role: 'group',
@@ -83,7 +89,7 @@ export class Toolbar {
       { class: 'panel toolbar', role: 'toolbar', 'aria-label': tr.toolbar.label },
       [
         this.toolsSlot,
-        el('div', { class: 'toolbar-group' }, [this.undoBtn, this.redoBtn]),
+        el('div', { class: 'toolbar-group' }, [this.undoBtn, this.redoBtn, resetBtn]),
         el('div', { class: 'toolbar-group' }, [this.snapBtn, this.labelsBtn]),
         el('div', { class: 'toolbar-group' }, [frameBtn, libraryBtn, pngBtn]),
         el('div', { class: 'toolbar-group' }, [helpBtn]),
@@ -93,6 +99,34 @@ export class Toolbar {
     this.render(ctl.state);
     ctl.store.subscribe((s) => this.render(s));
     ctl.history.subscribe(() => this.render(ctl.state));
+  }
+
+  /** Reset needs a second click within a few seconds (it is undoable, but drastic). */
+  private resetButton(onArmed: () => void, onReset: () => void): HTMLButtonElement {
+    const b = iconButton(tr.toolbar.reset, '', RESET_ICON);
+    b.classList.add('btn-danger');
+    let armed = 0;
+    const disarm = () => {
+      window.clearTimeout(armed);
+      armed = 0;
+      b.classList.remove('armed');
+      b.title = tr.toolbar.reset;
+      b.setAttribute('aria-label', tr.toolbar.reset);
+    };
+    b.addEventListener('click', () => {
+      if (armed) {
+        disarm();
+        onReset();
+        return;
+      }
+      b.classList.add('armed');
+      b.title = tr.toolbar.resetConfirm;
+      b.setAttribute('aria-label', tr.toolbar.resetConfirm);
+      armed = window.setTimeout(disarm, 3000);
+      onArmed();
+    });
+    b.addEventListener('blur', disarm);
+    return b;
   }
 
   private render(s: AppState): void {

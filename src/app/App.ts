@@ -145,6 +145,12 @@ export class App {
       onAddFrame: () => this.scenario.addFrame(),
       onLibrary: () => this.libraryModal.open(),
       onScreenshot: () => void this.library.exportPng(),
+      onResetArmed: () => notify(tr.toolbar.resetConfirm),
+      onReset: () => {
+        this.exitPov();
+        this.controller.resetBoard();
+        notify(tr.toolbar.resetDone);
+      },
     });
     const timeline = new Timeline(this.scenario, (visible) =>
       overlay.classList.toggle('has-timeline', visible),
