@@ -1,7 +1,16 @@
 import * as THREE from 'three';
 import { easing } from '../core/tween';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { BODY_CENTER_Y, FIGURE_HEIGHT, HEAD_Y, NUMBER_Y, type PlayerAssets } from './PlayerAssets';
+import {
+  BODY_CENTER_Y,
+  DIM_OPACITY,
+  FIGURE_HEIGHT,
+  HEAD_Y,
+  NUMBER_Y,
+  type PlayerAssets,
+} from './PlayerAssets';
+
+export type PlayerVisibility = 'normal' | 'dim' | 'hidden';
 
 export interface PlayerAppearance {
   number: number;
@@ -32,6 +41,9 @@ export class PlayerMesh {
   readonly hit: THREE.Mesh;
   private figure = new THREE.Group();
   private body: THREE.Mesh;
+  private head: THREE.Mesh;
+  private visibility: PlayerVisibility = 'normal';
+  private labelVisible = true;
   private ring: THREE.Mesh;
   private numberMat: THREE.MeshStandardMaterial | null = null;
   private numberFront: THREE.Mesh;
@@ -61,6 +73,7 @@ export class PlayerMesh {
     const head = new THREE.Mesh(assets.headGeo, assets.headMat);
     head.position.y = HEAD_Y;
     head.castShadow = true;
+    this.head = head;
 
     this.numberFront = new THREE.Mesh(assets.numberGeo, assets.hitMat);
     this.numberFront.position.y = NUMBER_Y;
@@ -129,23 +142,45 @@ export class PlayerMesh {
   setAppearance(a: PlayerAppearance): void {
     const prev = this.appearance;
     this.appearance = a;
-    this.body.material = this.assets.bodyMaterial(a.bodyColor);
     if (!prev || prev.number !== a.number || prev.numberColor !== a.numberColor) {
       this.disposeNumber();
       this.numberMat = this.assets.createNumberMaterial(a.number, a.numberColor);
       this.numberFront.material = this.numberMat;
       this.numberBack.material = this.numberMat;
     }
+    this.applyMaterials();
     this.figure.rotation.y = a.facing === 1 ? 0 : Math.PI;
     this.labelNum.textContent = String(a.number);
     this.labelName.textContent = a.label;
     this.labelNum.style.background = a.bodyColor;
     this.labelNum.style.color = a.numberColor;
-    this.updateRingMaterial();
   }
 
   setLabelVisible(visible: boolean): void {
-    this.label.visible = visible;
+    this.labelVisible = visible;
+    this.label.visible = visible && this.visibility !== 'hidden';
+  }
+
+  /** Normal, faded (translucent) or hidden — used for the opponent team. */
+  setVisibility(v: PlayerVisibility): void {
+    if (this.visibility === v) return;
+    this.visibility = v;
+    this.root.visible = v !== 'hidden';
+    this.label.visible = this.labelVisible && v !== 'hidden';
+    this.label.element.classList.toggle('dim', v === 'dim');
+    this.applyMaterials();
+  }
+
+  private applyMaterials(): void {
+    const a = this.appearance;
+    if (!a) return;
+    const dim = this.visibility === 'dim';
+    this.body.material = this.assets.bodyMaterial(a.bodyColor, dim);
+    this.head.material = dim ? this.assets.headDimMat : this.assets.headMat;
+    this.body.castShadow = !dim;
+    this.head.castShadow = !dim;
+    if (this.numberMat) this.numberMat.opacity = dim ? DIM_OPACITY : 1;
+    this.updateRingMaterial();
   }
 
   setSelected(on: boolean): void {
@@ -167,7 +202,7 @@ export class PlayerMesh {
     if (!this.appearance) return;
     this.ring.material = this.selected
       ? this.assets.ringSelectedMat
-      : this.assets.ringMaterial(this.appearance.ringColor);
+      : this.assets.ringMaterial(this.appearance.ringColor, this.visibility === 'dim');
   }
 
   update(dtMs: number, timeMs: number): void {

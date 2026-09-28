@@ -1,10 +1,18 @@
 import type { Phase } from '../logic/phases';
-import { setActiveTeam } from '../state/actions';
-import { movePiecesCommand, setFormationCommand, setPhaseCommand } from '../state/commands';
+import { setActiveTeam, setSelection, toggleSnap } from '../state/actions';
+import {
+  movePiecesCommand,
+  setFormationCommand,
+  setPhaseCommand,
+  updatePlayerCommand,
+  updateTeamCommand,
+  type PlayerPatch,
+  type TeamPatch,
+} from '../state/commands';
 import { findFormation, formationFromTeam } from '../state/formationOps';
 import type { History } from '../state/history';
 import { saveCustomFormations } from '../state/persistence';
-import type { AppState, TeamId } from '../state/schema';
+import type { AppState, OpponentMode, PieceId, TeamId } from '../state/schema';
 import type { Store } from '../state/store';
 import type { Positions } from '../state/actions';
 
@@ -73,6 +81,55 @@ export class Controller {
     const customFormations = s.customFormations.filter((f) => f.id !== id);
     saveCustomFormations(customFormations);
     this.store.set({ ...s, customFormations });
+  }
+
+  /** Live preview of a team setting (e.g. while a colour picker is open); not recorded. */
+  previewTeam(team: TeamId, patch: TeamPatch): void {
+    this.store.update((s) => ({
+      ...s,
+      teams: { ...s.teams, [team]: { ...s.teams[team], ...patch } },
+    }));
+  }
+
+  /** Records a team settings change as one undo step (`before` = values before editing). */
+  commitTeam(team: TeamId, before: TeamPatch, after: TeamPatch): void {
+    const same = (Object.keys(after) as (keyof TeamPatch)[]).every((k) => before[k] === after[k]);
+    if (same) {
+      this.previewTeam(team, after);
+      return;
+    }
+    this.history.execute(updateTeamCommand(team, before, after));
+  }
+
+  updatePlayer(id: string, after: PlayerPatch): void {
+    const p = this.store.state.players.find((pl) => pl.id === id);
+    if (!p) return;
+    const before: PlayerPatch = {};
+    let changed = false;
+    for (const k of Object.keys(after) as (keyof PlayerPatch)[]) {
+      Object.assign(before, { [k]: p[k] });
+      if (p[k] !== after[k]) changed = true;
+    }
+    if (changed) this.history.execute(updatePlayerCommand(id, before, after));
+  }
+
+  select(ids: PieceId[]): void {
+    this.store.update((s) => setSelection(s, ids));
+  }
+
+  toggleSnap(): void {
+    this.store.update(toggleSnap);
+  }
+
+  toggleLabels(): void {
+    this.store.update((s) => ({
+      ...s,
+      settings: { ...s.settings, showLabels: !s.settings.showLabels },
+    }));
+  }
+
+  setOpponentMode(mode: OpponentMode): void {
+    this.store.update((s) => ({ ...s, settings: { ...s.settings, opponentMode: mode } }));
   }
 
   undo(): void {

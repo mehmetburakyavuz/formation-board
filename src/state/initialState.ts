@@ -54,7 +54,7 @@ export function createInitialState(): AppState {
     ball: { x: 0, z: 0 },
     activeTeam: 'home',
     selection: [],
-    settings: { snap: false, showLabels: true, ballScale: 1.5 },
+    settings: { snap: false, showLabels: true, ballScale: 1.5, opponentMode: 'normal' },
     customFormations: loadCustomFormations(),
   };
 }

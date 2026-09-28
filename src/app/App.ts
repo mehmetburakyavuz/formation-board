@@ -12,13 +12,14 @@ import { PiecesView } from '../scene/PiecesView';
 import { Pitch } from '../scene/Pitch';
 import { SceneManager } from '../scene/SceneManager';
 import { SnapGrid } from '../scene/SnapGrid';
-import { toggleSnap } from '../state/actions';
 import { History } from '../state/history';
 import { createInitialState } from '../state/initialState';
 import type { AppState } from '../state/schema';
 import { Store } from '../state/store';
 import { CameraControls } from '../ui/CameraControls';
+import { HelpModal } from '../ui/HelpModal';
 import { Sidebar } from '../ui/Sidebar';
+import { Toolbar } from '../ui/Toolbar';
 import { Controller } from './Controller';
 import { el } from '../ui/dom';
 import type { AppEvents } from './events';
@@ -38,6 +39,8 @@ export class App {
   readonly shortcuts = new ShortcutManager();
   readonly tool: ToolController;
   readonly selection: SelectionController;
+  readonly sidebar: Sidebar;
+  readonly help: HelpModal;
 
   constructor(root: HTMLElement) {
     const viewport = el('div', { class: 'viewport' });
@@ -65,9 +68,17 @@ export class App {
 
     drag.onCommit = ({ before, after }) => this.controller.recordMove(before, after);
 
-    const sidebar = new Sidebar(this.controller);
+    this.help = new HelpModal();
+    this.sidebar = new Sidebar(this.controller);
+    const toolbar = new Toolbar(this.controller, () => this.help.open());
     const cameraControls = new CameraControls(this.bus);
-    overlay.append(sidebar.root, cameraControls.root);
+    overlay.append(
+      this.sidebar.root,
+      this.sidebar.openButton,
+      toolbar.root,
+      cameraControls.root,
+      this.help.root,
+    );
 
     this.wireCamera();
     this.wireEditing();
@@ -105,13 +116,19 @@ export class App {
   }
 
   private wireEditing(): void {
-    const { shortcuts, store, controller } = this;
+    const { shortcuts, controller } = this;
     shortcuts.register({ key: 'z', ctrl: true, shift: true, handler: () => controller.redo() });
     shortcuts.register({ key: 'z', ctrl: true, shift: false, handler: () => controller.undo() });
     shortcuts.register({ key: 'y', ctrl: true, handler: () => controller.redo() });
     shortcuts.register({ key: 'Escape', handler: () => this.tool.escape() });
     shortcuts.register({ key: 'a', ctrl: true, handler: () => this.selection.selectActiveTeam() });
-    shortcuts.register({ key: 'g', handler: () => store.update(toggleSnap) });
+    shortcuts.register({ key: 'g', handler: () => controller.toggleSnap() });
+    shortcuts.register({ key: 'l', handler: () => controller.toggleLabels() });
+    shortcuts.register({ key: '?', handler: () => this.help.toggle() });
+    shortcuts.register({
+      key: 'f',
+      handler: () => this.bus.emit('app:toggleFullscreen', undefined),
+    });
     shortcuts.register({ key: 't', handler: () => controller.toggleActiveTeam() });
   }
 }

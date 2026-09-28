@@ -1,125 +1,115 @@
 import type { Controller } from '../app/Controller';
-import { FORMATIONS, type Formation } from '../data/formations';
 import { tr } from '../i18n/tr';
-import type { Phase } from '../logic/phases';
-import type { AppState, TeamId } from '../state/schema';
-import { el } from './dom';
+import type { AppState } from '../state/schema';
+import { el, icon } from './dom';
+import { FormationSection } from './sidebar/FormationSection';
+import { PlayerList } from './sidebar/PlayerList';
+import { TeamSection } from './sidebar/TeamSection';
 
-const TEAMS: TeamId[] = ['home', 'away'];
-const PHASES: Phase[] = ['attack', 'defence'];
+const CLOSE_ICON = 'M15 6l-6 6 6 6';
+const OPEN_ICON = 'M4 6h16M4 12h16M4 18h16';
+const MOBILE_QUERY = '(max-width: 767px)';
+const COLLAPSED_KEY = 'formasyon.sidebarCollapsed';
 
-/** Left panel: team, formation, phase and custom formation saving. */
+function readCollapsed(): boolean | null {
+  try {
+    const v = localStorage.getItem(COLLAPSED_KEY);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Left panel (collapsible). Below 768 px it becomes a bottom drawer.
+ * Hosts team, formation/phase and player list sections.
+ */
 export class Sidebar {
   readonly root: HTMLElement;
-  private teamBtns = new Map<TeamId, HTMLButtonElement>();
-  private phaseBtns = new Map<Phase, HTMLButtonElement>();
-  private formationList: HTMLElement;
-  private formationBtns = new Map<string, HTMLButtonElement>();
-  private renderedCustom: Formation[] | null = null;
-  private nameInput: HTMLInputElement;
+  readonly openButton: HTMLButtonElement;
+  private panel: HTMLElement;
+  private team: TeamSection;
+  private formations: FormationSection;
+  private players: PlayerList;
+  private mobile = window.matchMedia(MOBILE_QUERY);
 
-  constructor(private ctl: Controller) {
-    const teamRow = el('div', { class: 'segmented', role: 'group', 'aria-label': tr.sidebar.team });
-    for (const id of TEAMS) {
-      const b = el('button', { class: 'seg-btn', type: 'button' }, [tr.teams[id]]);
-      b.addEventListener('click', () => ctl.setActiveTeam(id));
-      this.teamBtns.set(id, b);
-      teamRow.append(b);
-    }
+  constructor(ctl: Controller) {
+    this.team = new TeamSection(ctl);
+    this.formations = new FormationSection(ctl);
+    this.players = new PlayerList(ctl);
 
-    this.formationList = el('div', {
-      class: 'formation-grid',
-      role: 'group',
-      'aria-label': tr.sidebar.formation,
-    });
+    const closeBtn = el(
+      'button',
+      { class: 'btn btn-icon btn-ghost', type: 'button', 'aria-label': tr.sidebar.collapse },
+      [icon(CLOSE_ICON)],
+    );
+    closeBtn.addEventListener('click', () => this.setCollapsed(true, true));
 
-    const phaseRow = el('div', {
-      class: 'segmented',
-      role: 'group',
-      'aria-label': tr.sidebar.phase,
-    });
-    for (const ph of PHASES) {
-      const b = el('button', { class: 'seg-btn', type: 'button' }, [tr.sidebar.phases[ph]]);
-      b.addEventListener('click', () => ctl.setPhase(ctl.state.activeTeam, ph));
-      this.phaseBtns.set(ph, b);
-      phaseRow.append(b);
-    }
+    const header = el('header', { class: 'sidebar-header' }, [
+      el('span', { class: 'drawer-handle', 'aria-hidden': 'true' }),
+      el('h1', { class: 'sidebar-title' }, [tr.sidebar.title]),
+      closeBtn,
+    ]);
 
-    this.nameInput = el('input', {
-      class: 'text-input',
-      type: 'text',
-      maxlength: '32',
-      placeholder: tr.sidebar.customPlaceholder,
-      'aria-label': tr.sidebar.customPlaceholder,
-    });
-    const saveBtn = el('button', { class: 'btn btn-primary', type: 'submit' }, [tr.sidebar.save]);
-    const saveForm = el('form', { class: 'inline-form' }, [this.nameInput, saveBtn]);
-    saveForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = this.nameInput.value.trim();
-      if (!name) {
-        this.nameInput.focus();
-        return;
-      }
-      ctl.saveCustomFormation(ctl.state.activeTeam, name);
-      this.nameInput.value = '';
-    });
+    this.panel = el('div', { class: 'sidebar-body', id: 'sidebar-body' }, [
+      ...this.team.elements,
+      ...this.formations.elements,
+      ...this.players.elements,
+    ]);
 
     this.root = el('aside', { class: 'panel sidebar', 'aria-label': tr.sidebar.label }, [
-      section(tr.sidebar.team, teamRow),
-      section(tr.sidebar.formation, this.formationList),
-      section(tr.sidebar.phase, phaseRow, tr.sidebar.phaseHint),
-      section(tr.sidebar.saveCustom, saveForm),
+      header,
+      this.panel,
     ]);
+
+    this.openButton = el(
+      'button',
+      {
+        class: 'btn panel sidebar-open',
+        type: 'button',
+        'aria-label': tr.sidebar.expand,
+        'aria-controls': 'sidebar-body',
+      },
+      [icon(OPEN_ICON), el('span', { class: 'sidebar-open-label' }, [tr.sidebar.title])],
+    );
+    this.openButton.addEventListener('click', () => this.setCollapsed(false, true));
+
+    // Desktop: remember the user's choice. Mobile: drawer starts closed.
+    this.setCollapsed(this.mobile.matches ? true : (readCollapsed() ?? false), false);
+    this.mobile.addEventListener('change', (e) => this.setCollapsed(e.matches, false));
 
     this.render(ctl.state);
     ctl.store.subscribe((s) => this.render(s));
   }
 
-  private buildFormations(custom: Formation[]): void {
-    this.formationList.replaceChildren();
-    this.formationBtns.clear();
-    const add = (f: Formation, removable: boolean) => {
-      const b = el('button', { class: 'formation-btn', type: 'button' }, [f.name]);
-      b.addEventListener('click', () => this.ctl.setFormation(this.ctl.state.activeTeam, f.id));
-      this.formationBtns.set(f.id, b);
-      if (!removable) {
-        this.formationList.append(b);
-        return;
+  get collapsed(): boolean {
+    return this.root.classList.contains('collapsed');
+  }
+
+  setCollapsed(collapsed: boolean, moveFocus: boolean): void {
+    this.root.classList.toggle('collapsed', collapsed);
+    this.root.toggleAttribute('inert', collapsed);
+    this.openButton.hidden = !collapsed;
+    this.openButton.setAttribute('aria-expanded', String(!collapsed));
+    if (!this.mobile.matches) {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+      } catch {
+        // ignore unavailable storage
       }
-      const del = el(
-        'button',
-        { class: 'formation-del', type: 'button', 'aria-label': tr.sidebar.deleteCustom(f.name) },
-        ['×'],
-      );
-      del.addEventListener('click', () => this.ctl.deleteCustomFormation(f.id));
-      this.formationList.append(el('div', { class: 'formation-custom' }, [b, del]));
-    };
-    for (const f of FORMATIONS) add(f, false);
-    if (custom.length > 0) {
-      this.formationList.append(el('div', { class: 'group-label' }, [tr.sidebar.customGroup]));
-      for (const f of custom) add(f, true);
     }
-    this.renderedCustom = custom;
+    if (!moveFocus) return;
+    if (collapsed) this.openButton.focus();
+    else this.root.querySelector<HTMLElement>('button, input')?.focus();
+  }
+
+  toggle(): void {
+    this.setCollapsed(!this.collapsed, true);
   }
 
   private render(s: AppState): void {
-    if (this.renderedCustom !== s.customFormations) this.buildFormations(s.customFormations);
-    const team = s.teams[s.activeTeam];
-    for (const [id, b] of this.teamBtns) setPressed(b, id === s.activeTeam);
-    for (const [ph, b] of this.phaseBtns) setPressed(b, ph === team.phase);
-    for (const [id, b] of this.formationBtns) setPressed(b, id === team.formationId);
+    this.team.render(s);
+    this.formations.render(s);
+    this.players.render(s);
   }
-}
-
-function setPressed(b: HTMLButtonElement, on: boolean): void {
-  b.setAttribute('aria-pressed', String(on));
-  b.classList.toggle('active', on);
-}
-
-function section(title: string, body: HTMLElement, hint?: string): HTMLElement {
-  const children: HTMLElement[] = [el('h2', { class: 'section-title' }, [title])];
-  if (hint) children.push(el('p', { class: 'section-hint' }, [hint]));
-  children.push(body);
-  return el('section', { class: 'sidebar-section' }, children);
 }

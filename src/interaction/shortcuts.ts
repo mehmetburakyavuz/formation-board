@@ -35,6 +35,8 @@ export class ShortcutManager {
 
   private handle(e: KeyboardEvent): void {
     if (isEditable(e.target)) return;
+    // A modal dialog handles its own keys (Esc closes it natively).
+    if (e.target instanceof Element && e.target.closest('dialog[open]')) return;
     const ctrl = e.ctrlKey || e.metaKey;
     for (const s of this.shortcuts) {
       const keyMatch = s.key.toLowerCase() === e.key.toLowerCase() || s.key === e.code;

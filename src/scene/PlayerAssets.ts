@@ -11,6 +11,7 @@ const RING_OUTER = 0.8;
 const NUMBER_ARC = 1.3; // radians of the shirt covered by the number
 const NUMBER_HEIGHT = 0.42;
 export const NUMBER_Y = BODY_CENTER_Y + 0.12;
+export const DIM_OPACITY = 0.3;
 
 /**
  * Geometries and materials shared by all player figures.
@@ -51,30 +52,60 @@ export class PlayerAssets {
     polygonOffsetUnits: -4,
   });
 
-  bodyMaterial(color: string): THREE.MeshStandardMaterial {
-    let m = this.bodyMats.get(color);
+  readonly headDimMat = new THREE.MeshStandardMaterial({
+    color: 0xd9b08c,
+    roughness: 0.6,
+    transparent: true,
+    opacity: DIM_OPACITY,
+    depthWrite: false,
+  });
+
+  /** Shared per colour; `dim` variants are translucent (for a faded opponent). */
+  bodyMaterial(color: string, dim = false): THREE.MeshStandardMaterial {
+    const key = `${color}|${dim}`;
+    let m = this.bodyMats.get(key);
     if (!m) {
-      m = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
-      this.bodyMats.set(color, m);
+      m = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.55,
+        metalness: 0.05,
+        transparent: dim,
+        opacity: dim ? DIM_OPACITY : 1,
+        depthWrite: !dim,
+      });
+      this.bodyMats.set(key, m);
     }
     return m;
   }
 
-  ringMaterial(color: string): THREE.MeshBasicMaterial {
-    let m = this.ringMats.get(color);
+  ringMaterial(color: string, dim = false): THREE.MeshBasicMaterial {
+    const key = `${color}|${dim}`;
+    let m = this.ringMats.get(key);
     if (!m) {
       m = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.85,
+        opacity: dim ? 0.25 : 0.85,
         depthWrite: false,
         polygonOffset: true,
         polygonOffsetFactor: -4,
         polygonOffsetUnits: -4,
       });
-      this.ringMats.set(color, m);
+      this.ringMats.set(key, m);
     }
     return m;
+  }
+
+  /** Disposes cached colour materials whose colour is no longer used by any team. */
+  prune(usedColors: ReadonlySet<string>): void {
+    for (const cache of [this.bodyMats, this.ringMats]) {
+      for (const [key, m] of cache) {
+        if (!usedColors.has(key.split('|')[0])) {
+          m.dispose();
+          cache.delete(key);
+        }
+      }
+    }
   }
 
   createNumberMaterial(num: number, color: string): THREE.MeshStandardMaterial {
@@ -108,6 +139,7 @@ export class PlayerAssets {
     }
     this.hitMat.dispose();
     this.headMat.dispose();
+    this.headDimMat.dispose();
     this.ringSelectedMat.dispose();
     for (const m of this.bodyMats.values()) m.dispose();
     for (const m of this.ringMats.values()) m.dispose();

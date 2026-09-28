@@ -38,8 +38,12 @@ export interface BallState {
   z: number;
 }
 
+/** How the non-active (opponent) team is drawn. */
+export type OpponentMode = 'normal' | 'dim' | 'hidden';
+
 export interface Settings {
   snap: boolean;
+  opponentMode: OpponentMode;
   showLabels: boolean;
   /** Visual ball enlargement for readability (1 = real size). */
   ballScale: number;

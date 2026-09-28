@@ -13,6 +13,8 @@ const TRANSITION_MS = 800;
 const PAN_MARGIN = 10;
 const MIN_DISTANCE = 8;
 const MAX_DISTANCE = 160;
+/** Half pitch length plus margin that wide presets try to keep in view. */
+const FIT_HALF_LENGTH = HALF_LENGTH + 10;
 
 /** OrbitControls + preset angles with smooth spherical transitions. */
 export class CameraRig {
@@ -65,18 +67,23 @@ export class CameraRig {
 
   presetPose(id: CameraPresetId): CameraPose {
     const target = new THREE.Vector3(0, 0, 0);
+    const t = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    const aspect = Math.max(0.1, this.camera.aspect);
+    // On narrow (portrait) screens pull wide shots back so the pitch length still fits.
+    const fitScale = (base: number) =>
+      Math.min(MAX_DISTANCE / base, Math.max(1, FIT_HALF_LENGTH / (t * aspect) / base));
     switch (id) {
       case 'tactical': {
-        // Fit pitch + margin: screen-vertical maps to Z, horizontal to X.
-        const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
-        const t = Math.tan(halfFov);
-        const needZ = (HALF_WIDTH + 9) / t;
-        const needX = (HALF_LENGTH + 6) / (t * Math.max(0.1, this.camera.aspect));
-        const d = Math.min(MAX_DISTANCE, Math.max(needZ, needX));
-        return { position: new THREE.Vector3(0, d, 0.001), target };
+        const portrait = aspect < 1;
+        // Landscape: pitch length across the screen. Portrait: length runs bottom → top.
+        const across = portrait ? HALF_WIDTH + 6 : HALF_LENGTH + 6;
+        const along = portrait ? HALF_LENGTH + 6 : HALF_WIDTH + 9;
+        const d = Math.min(MAX_DISTANCE, Math.max(along / t, across / (t * aspect)));
+        const offset = portrait ? new THREE.Vector3(-0.001, d, 0) : new THREE.Vector3(0, d, 0.001);
+        return { position: offset, target };
       }
       case 'broadcast': {
-        const d = 105;
+        const d = 105 * fitScale(105);
         const a = THREE.MathUtils.degToRad(35);
         return { position: new THREE.Vector3(0, Math.sin(a) * d, Math.cos(a) * d), target };
       }
@@ -90,11 +97,12 @@ export class CameraRig {
           position: new THREE.Vector3(HALF_LENGTH + 22, 16, 0),
           target: new THREE.Vector3(8, 0, 0),
         };
-      case 'threeQuarter':
-        return {
-          position: new THREE.Vector3(-78, 42, 62),
-          target: new THREE.Vector3(-4, 0, 0),
-        };
+      case 'threeQuarter': {
+        const tgt = new THREE.Vector3(-4, 0, 0);
+        const offset = new THREE.Vector3(-74, 42, 62);
+        const k = fitScale(offset.length());
+        return { position: offset.multiplyScalar(k).add(tgt), target: tgt };
+      }
     }
   }
 

@@ -60,6 +60,11 @@ export class PiecesView {
         mesh.setAppearance(this.appearance(p, s));
       }
     });
+    if (teamsChanged) {
+      const used = new Set<string>();
+      for (const t of Object.values(s.teams)) used.add(t.color).add(t.gkColor);
+      this.assets.prune(used);
+    }
     for (const [id, mesh] of this.players) {
       if (!seen.has(id)) {
         mesh.dispose();
@@ -71,6 +76,17 @@ export class PiecesView {
     if (!prev || prev.settings !== s.settings) {
       this.ball.setScale(s.settings.ballScale);
       for (const m of this.players.values()) m.setLabelVisible(s.settings.showLabels);
+    }
+    if (
+      !prev ||
+      prev.settings.opponentMode !== s.settings.opponentMode ||
+      prev.activeTeam !== s.activeTeam ||
+      prev.players !== s.players
+    ) {
+      for (const p of s.players) {
+        const mode = p.team === s.activeTeam ? 'normal' : s.settings.opponentMode;
+        this.players.get(p.id)?.setVisibility(mode);
+      }
     }
     if (!prev || prev.selection !== s.selection) {
       const sel = new Set(s.selection);
