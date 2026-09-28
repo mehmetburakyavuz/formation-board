@@ -53,6 +53,7 @@ const GROUPS: [string, Row[]][] = [
     h.groups.general,
     [
       [['?'], h.items.help],
+      [['Ctrl', 'S'], h.items.library],
       [['Tab'], h.items.tab],
     ],
   ],

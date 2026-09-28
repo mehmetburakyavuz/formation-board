@@ -46,6 +46,7 @@ function createTeam(id: TeamId): TeamState {
 
 export function createInitialState(): AppState {
   return {
+    tacticName: tr.library.untitled,
     teams: { home: createTeam('home'), away: createTeam('away') },
     players: [
       ...createSquad('home', DEFAULT_FORMATION_ID),

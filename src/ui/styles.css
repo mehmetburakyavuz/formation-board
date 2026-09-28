@@ -1194,3 +1194,127 @@ kbd {
     bottom: calc(80px + var(--timeline-h));
   }
 }
+
+/* --- Library dialog --- */
+.library-modal {
+  color: var(--text);
+  padding: 20px 24px;
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  background: var(--modal-bg);
+}
+
+.library-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.library-modal h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.modal-section {
+  padding: 12px 0;
+  border-top: 1px solid var(--panel-border);
+}
+
+.modal-section h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+}
+
+.library-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.library-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-meta,
+.library-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.btn-danger.armed {
+  background: var(--danger);
+  color: #1a0005;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Toast --- */
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  transform: translate(-50%, -8px);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--modal-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  z-index: 5;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.toast.error {
+  border-color: var(--danger-border);
+  color: var(--danger);
+}

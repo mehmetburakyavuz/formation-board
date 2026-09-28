@@ -119,6 +119,8 @@ export interface Settings {
 }
 
 export interface AppState {
+  /** Name of the tactic on the board (used for saving/exporting). */
+  tacticName: string;
   teams: Record<TeamId, TeamState>;
   players: PlayerState[];
   ball: BallState;
@@ -132,4 +134,29 @@ export interface AppState {
   /** Drawing selected with the select tool (shows its bend handle). */
   selectedDrawing: string | null;
   scenario: Scenario;
+}
+
+// --- Persistence -----------------------------------------------------------------
+
+/** Bumped whenever the persisted shape changes incompatibly. */
+export const SCHEMA_VERSION = 1;
+
+/** Board content that is saved, exported and loaded (UI-only fields are excluded). */
+export type PersistedState = Pick<
+  AppState,
+  'tacticName' | 'teams' | 'players' | 'ball' | 'activeTeam' | 'settings' | 'drawings' | 'scenario'
+>;
+
+export interface TacticDocument {
+  version: number;
+  /** ISO timestamp. */
+  savedAt: string;
+  state: PersistedState;
+}
+
+export interface LibraryEntry {
+  id: string;
+  name: string;
+  savedAt: string;
+  doc: TacticDocument;
 }

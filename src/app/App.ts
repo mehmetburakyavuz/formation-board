@@ -28,14 +28,28 @@ import { Controller } from './Controller';
 import { ScenarioActions } from './ScenarioActions';
 import { ScenarioPlayer } from './ScenarioPlayer';
 import { Timeline } from '../ui/timeline/Timeline';
+import { tr } from '../i18n/tr';
+import { withPersisted } from '../state/document';
+import { loadAutosave } from '../state/persistence';
+import { LibraryModal } from '../ui/LibraryModal';
+import { Toast } from '../ui/Toast';
+import { Autosave } from './Autosave';
+import { LibraryActions } from './LibraryActions';
 import { el } from '../ui/dom';
 import type { AppEvents } from './events';
+
+/** Fresh board, or the last autosaved one if present and valid. */
+function restoreState(): AppState {
+  const initial = createInitialState();
+  const saved = loadAutosave();
+  return saved ? withPersisted(initial, saved.state) : initial;
+}
 
 /** Wires state, scene, interaction and UI modules together. */
 export class App {
   readonly bus = new EventBus<AppEvents>();
   readonly tweens = new TweenManager();
-  readonly store = new Store<AppState>(createInitialState());
+  readonly store = new Store<AppState>(restoreState());
   readonly history = new History<AppState>(this.store);
   readonly controller = new Controller(this.store, this.history);
   readonly sceneManager: SceneManager;
@@ -50,6 +64,8 @@ export class App {
   readonly sidebar: Sidebar;
   readonly help: HelpModal;
   readonly scenario: ScenarioActions;
+  readonly library: LibraryActions;
+  readonly libraryModal: LibraryModal;
 
   constructor(root: HTMLElement) {
     const viewport = el('div', { class: 'viewport' });
@@ -111,11 +127,17 @@ export class App {
 
     this.help = new HelpModal();
     this.sidebar = new Sidebar(this.controller);
-    const toolbar = new Toolbar(
-      this.controller,
-      () => this.help.open(),
-      () => this.scenario.addFrame(),
-    );
+    const toast = new Toast();
+    const notify = (msg: string, kind?: 'info' | 'error') => toast.show(msg, kind);
+    new Autosave(this.store, () => notify(tr.library.storageFailed, 'error'));
+    this.library = new LibraryActions(this.store, this.history, sm, notify);
+    this.libraryModal = new LibraryModal(this.library);
+    const toolbar = new Toolbar(this.controller, {
+      onHelp: () => this.help.open(),
+      onAddFrame: () => this.scenario.addFrame(),
+      onLibrary: () => this.libraryModal.open(),
+      onScreenshot: () => void this.library.exportPng(),
+    });
     const timeline = new Timeline(this.scenario, (visible) =>
       overlay.classList.toggle('has-timeline', visible),
     );
@@ -127,7 +149,9 @@ export class App {
       cameraControls.root,
       timeline.root,
       noteEditor.root,
+      toast.root,
       this.help.root,
+      this.libraryModal.root,
     );
 
     this.wireCamera();
@@ -174,6 +198,7 @@ export class App {
     shortcuts.register({ key: 'z', ctrl: true, shift: false, handler: () => controller.undo() });
     shortcuts.register({ key: 'y', ctrl: true, handler: () => controller.redo() });
     shortcuts.register({ key: 'k', handler: () => scenario.addFrame() });
+    shortcuts.register({ key: 's', ctrl: true, handler: () => this.libraryModal.open() });
     shortcuts.register({
       key: ' ',
       // Space on a focused button/select keeps its native meaning.
