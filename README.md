@@ -27,6 +27,12 @@ npm run dev        # geliştirme sunucusu → http://localhost:5173
 
 Telefonda denemek için: `npx vite --host` ve aynı ağdaki cihazdan bilgisayarın IP adresine bağlanın.
 
+### GitHub Pages
+
+`master` (veya `main`) dalına her push'ta `.github/workflows/deploy.yml` testleri çalıştırır, derler ve
+`dist/` klasörünü GitHub Pages'e yayınlar. Depoda bir kez **Settings → Pages → Source: GitHub Actions**
+seçilmelidir. `vite.config.ts` içindeki `base: './'` sayesinde site herhangi bir alt dizinde çalışır.
+
 ## Kullanım
 
 ### Kamera
