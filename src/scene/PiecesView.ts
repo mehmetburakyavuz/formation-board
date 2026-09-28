@@ -15,7 +15,10 @@ export class PiecesView {
   private hovered: PieceId | null = null;
   private unsubscribe: () => void;
 
-  constructor(scene: THREE.Scene, store: Store<AppState>) {
+  constructor(
+    scene: THREE.Scene,
+    private store: Store<AppState>,
+  ) {
     this.group.name = 'pieces';
     this.group.add(this.ball.root);
     scene.add(this.group);
@@ -94,6 +97,29 @@ export class PiecesView {
       for (const [id, m] of this.players) m.setSelected(sel.has(id));
       this.ball.setSelected(sel.has(BALL_ID));
     }
+  }
+
+  /**
+   * Shows an arbitrary pose (scenario playback) without touching the store.
+   * `null` returns every piece to its store position.
+   */
+  setOverride(
+    pose: {
+      players: ReadonlyMap<PieceId, { x: number; z: number }>;
+      ball: { x: number; z: number };
+    } | null,
+  ): void {
+    if (pose) {
+      for (const [id, m] of this.players) {
+        const p = pose.players.get(id);
+        if (p) m.setPosition(p.x, p.z);
+      }
+      this.ball.setPosition(pose.ball.x, pose.ball.z);
+      return;
+    }
+    const s = this.store.state;
+    for (const p of s.players) this.players.get(p.id)?.setPosition(p.x, p.z);
+    this.ball.setPosition(s.ball.x, s.ball.z);
   }
 
   /** Objects the raycaster should test (only interactive pieces). */

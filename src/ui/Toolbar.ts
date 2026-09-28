@@ -18,6 +18,7 @@ const TOOL_ICONS: Record<ToolId, string> = {
   note: 'M5 5h14v10H10l-5 4z',
   eraser: 'M8 20h11M4.5 15.5l9-9 5.5 5.5-8.5 8.5H9z',
 };
+const FRAME_ICON = 'M4 6h16v12H4zM8 6v12M16 6v12M12 10v4M10 12h4';
 const HELP_ICON = 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5h.01';
 
 function iconButton(label: string, shortcut: string, d: string): HTMLButtonElement {
@@ -41,7 +42,10 @@ export class Toolbar {
   constructor(
     private ctl: Controller,
     onHelp: () => void,
+    onAddFrame: () => void,
   ) {
+    const frameBtn = iconButton(tr.timeline.addFrame, 'K', FRAME_ICON);
+    frameBtn.addEventListener('click', onAddFrame);
     const helpBtn = iconButton(tr.toolbar.help, '?', HELP_ICON);
     this.undoBtn.addEventListener('click', () => ctl.undo());
     this.redoBtn.addEventListener('click', () => ctl.redo());
@@ -67,6 +71,7 @@ export class Toolbar {
         this.toolsSlot,
         el('div', { class: 'toolbar-group' }, [this.undoBtn, this.redoBtn]),
         el('div', { class: 'toolbar-group' }, [this.snapBtn, this.labelsBtn]),
+        el('div', { class: 'toolbar-group' }, [frameBtn]),
         el('div', { class: 'toolbar-group' }, [helpBtn]),
       ],
     );

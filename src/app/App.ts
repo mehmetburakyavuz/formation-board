@@ -25,6 +25,9 @@ import { NoteEditor } from '../ui/NoteEditor';
 import { Sidebar } from '../ui/Sidebar';
 import { Toolbar } from '../ui/Toolbar';
 import { Controller } from './Controller';
+import { ScenarioActions } from './ScenarioActions';
+import { ScenarioPlayer } from './ScenarioPlayer';
+import { Timeline } from '../ui/timeline/Timeline';
 import { el } from '../ui/dom';
 import type { AppEvents } from './events';
 
@@ -46,6 +49,7 @@ export class App {
   readonly selection: SelectionController;
   readonly sidebar: Sidebar;
   readonly help: HelpModal;
+  readonly scenario: ScenarioActions;
 
   constructor(root: HTMLElement) {
     const viewport = el('div', { class: 'viewport' });
@@ -75,6 +79,18 @@ export class App {
       guides,
       this.cameraRig.controls,
     );
+    const player = new ScenarioPlayer(this.store, this.history, this.pieces);
+    this.scenario = new ScenarioActions(this.store, this.history, player);
+    this.history.beforeChange = () => player.finishNow();
+    // Touching the board during playback completes the running step first.
+    viewport.addEventListener(
+      'pointerdown',
+      () => {
+        if (player.busy) player.finishNow();
+      },
+      { capture: true },
+    );
+
     const noteEditor = new NoteEditor();
     this.tool = new ToolController({
       el: viewport,
@@ -95,13 +111,21 @@ export class App {
 
     this.help = new HelpModal();
     this.sidebar = new Sidebar(this.controller);
-    const toolbar = new Toolbar(this.controller, () => this.help.open());
+    const toolbar = new Toolbar(
+      this.controller,
+      () => this.help.open(),
+      () => this.scenario.addFrame(),
+    );
+    const timeline = new Timeline(this.scenario, (visible) =>
+      overlay.classList.toggle('has-timeline', visible),
+    );
     const cameraControls = new CameraControls(this.bus);
     overlay.append(
       this.sidebar.root,
       this.sidebar.openButton,
       toolbar.root,
       cameraControls.root,
+      timeline.root,
       noteEditor.root,
       this.help.root,
     );
@@ -117,6 +141,7 @@ export class App {
     sm.onFrame((dt, time) => {
       this.tweens.update(dt);
       this.cameraRig.update(dt);
+      player.update(dt);
       this.pieces.update(dt, time);
       this.drawings.update();
     });
@@ -143,10 +168,18 @@ export class App {
   }
 
   private wireEditing(): void {
-    const { shortcuts, controller } = this;
+    const { shortcuts, controller, scenario } = this;
+    const player = scenario.player;
     shortcuts.register({ key: 'z', ctrl: true, shift: true, handler: () => controller.redo() });
     shortcuts.register({ key: 'z', ctrl: true, shift: false, handler: () => controller.undo() });
     shortcuts.register({ key: 'y', ctrl: true, handler: () => controller.redo() });
+    shortcuts.register({ key: 'k', handler: () => scenario.addFrame() });
+    shortcuts.register({
+      key: ' ',
+      // Space on a focused button/select keeps its native meaning.
+      when: (e) => !(e.target instanceof Element && e.target.closest('button, select, summary, a')),
+      handler: () => player.toggle(),
+    });
     shortcuts.register({ key: 'Escape', handler: () => this.tool.escape() });
     shortcuts.register({ key: 'a', ctrl: true, handler: () => this.selection.selectActiveTeam() });
     shortcuts.register({ key: 'g', handler: () => controller.toggleSnap() });

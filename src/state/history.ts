@@ -16,6 +16,8 @@ export class History<S> {
   private undoStack: Command<S>[] = [];
   private redoStack: Command<S>[] = [];
   private listeners = new Set<() => void>();
+  /** Called before any change to the history (e.g. to settle a running animation). */
+  beforeChange: () => void = () => undefined;
 
   constructor(
     private store: Store<S>,
@@ -24,12 +26,14 @@ export class History<S> {
 
   /** Applies a command to the store and records it. */
   execute(cmd: Command<S>): void {
+    this.beforeChange();
     this.store.set(cmd.apply(this.store.state), cmd.meta);
     this.record(cmd);
   }
 
   /** Records a command whose effect is already in the store (e.g. a finished drag). */
   record(cmd: Command<S>): void {
+    this.beforeChange();
     this.undoStack.push(cmd);
     if (this.undoStack.length > this.limit) this.undoStack.shift();
     this.redoStack = [];
@@ -37,6 +41,7 @@ export class History<S> {
   }
 
   undo(): boolean {
+    this.beforeChange();
     const cmd = this.undoStack.pop();
     if (!cmd) return false;
     this.store.set(cmd.revert(this.store.state), cmd.meta);
@@ -46,6 +51,7 @@ export class History<S> {
   }
 
   redo(): boolean {
+    this.beforeChange();
     const cmd = this.redoStack.pop();
     if (!cmd) return false;
     this.store.set(cmd.apply(this.store.state), cmd.meta);

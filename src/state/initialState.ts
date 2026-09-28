@@ -67,5 +67,6 @@ export function createInitialState(): AppState {
     drawings: [],
     tool: 'select',
     selectedDrawing: null,
+    scenario: { frames: [], current: null, speed: 1 },
   };
 }

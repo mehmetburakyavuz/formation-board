@@ -4,6 +4,8 @@ export interface Shortcut {
   ctrl?: boolean;
   shift?: boolean;
   alt?: boolean;
+  /** Extra condition; when it returns false the key is left to the browser. */
+  when?: (e: KeyboardEvent) => boolean;
   handler: (e: KeyboardEvent) => void;
 }
 
@@ -44,6 +46,7 @@ export class ShortcutManager {
       if (!!s.ctrl !== ctrl) continue;
       if (s.shift !== undefined && s.shift !== e.shiftKey) continue;
       if (!!s.alt !== e.altKey) continue;
+      if (s.when && !s.when(e)) continue;
       e.preventDefault();
       s.handler(e);
       return;

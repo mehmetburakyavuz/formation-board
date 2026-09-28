@@ -14,6 +14,13 @@ const GROUPS: [string, Row[]][] = [
     ],
   ],
   [
+    h.groups.scenario,
+    [
+      [['K'], h.items.addFrame],
+      [[h.keys.space], h.items.playPause],
+    ],
+  ],
+  [
     h.groups.camera,
     [
       [['1', '–', '5'], h.items.presets],

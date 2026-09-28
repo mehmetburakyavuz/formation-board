@@ -80,6 +80,28 @@ export interface NoteDrawing {
 
 export type Drawing = ArrowDrawing | ZoneDrawing | NoteDrawing;
 
+// --- Scenario (step-by-step play) ---------------------------------------------
+
+/** Snapshot of the board used as an animation keyframe. */
+export interface Keyframe {
+  id: string;
+  /** Player positions by id. */
+  players: Record<PieceId, GroundPoint>;
+  ball: GroundPoint;
+  drawings: Drawing[];
+  /** Transition time into this frame (ms, at 1× speed). */
+  duration: number;
+}
+
+export type PlaybackSpeed = 0.5 | 1 | 2;
+
+export interface Scenario {
+  frames: Keyframe[];
+  /** Frame the board currently shows (null after free edits or before any). */
+  current: string | null;
+  speed: PlaybackSpeed;
+}
+
 export type ToolId = 'select' | 'run' | 'pass' | 'dribble' | 'zone' | 'note' | 'eraser';
 
 /** How the non-active (opponent) team is drawn. */
@@ -109,4 +131,5 @@ export interface AppState {
   tool: ToolId;
   /** Drawing selected with the select tool (shows its bend handle). */
   selectedDrawing: string | null;
+  scenario: Scenario;
 }

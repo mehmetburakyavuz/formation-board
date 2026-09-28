@@ -1,5 +1,6 @@
 import { PITCH_LENGTH, PITCH_WIDTH } from '../core/coords';
 import type { Formation } from '../data/formations';
+import type { AppState, Keyframe } from '../state/schema';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -37,5 +38,36 @@ export function miniPitch(f: Formation): SVGSVGElement {
       }),
     );
   }
+  return svg;
+}
+
+/** Top-down thumbnail of a scenario frame: players in team colours and the ball. */
+export function framePitch(f: Keyframe, s: AppState): SVGSVGElement {
+  const L = PITCH_LENGTH;
+  const W = PITCH_WIDTH;
+  const svg = svgEl('svg', { viewBox: `-3 -3 ${L + 6} ${W + 6}`, class: 'mini-pitch' });
+  svg.setAttribute('aria-hidden', 'true');
+  const line = { fill: 'none', class: 'mp-line', 'stroke-width': 1.2 };
+  svg.append(
+    svgEl('rect', { x: 0, y: 0, width: L, height: W, rx: 1.5, class: 'mp-grass' }),
+    svgEl('rect', { x: 0, y: 0, width: L, height: W, ...line }),
+    svgEl('line', { x1: L / 2, y1: 0, x2: L / 2, y2: W, ...line }),
+  );
+  for (const p of s.players) {
+    const pos = f.players[p.id];
+    if (!pos) continue;
+    const team = s.teams[p.team];
+    svg.append(
+      svgEl('circle', {
+        cx: pos.x + L / 2,
+        cy: pos.z + W / 2,
+        r: 2.8,
+        fill: p.role === 'GK' ? team.gkColor : team.color,
+      }),
+    );
+  }
+  svg.append(
+    svgEl('circle', { cx: f.ball.x + L / 2, cy: f.ball.z + W / 2, r: 2.2, class: 'mp-ball' }),
+  );
   return svg;
 }
