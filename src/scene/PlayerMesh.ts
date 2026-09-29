@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { DIM_OPACITY, type PlayerAssets } from './PlayerAssets';
 import { approachAngle, DropBounce, Glide, RunGait } from './motion';
-import { FIGURE_HEIGHT, type KitColors } from './playerGeometry';
+import { FIGURE_HEIGHT, PIECE_SCALE, type KitColors } from './playerGeometry';
 import { PlayerRig } from './PlayerRig';
 
 export type PlayerVisibility = 'normal' | 'dim' | 'hidden';
@@ -63,6 +63,7 @@ export class PlayerMesh {
     private assets: PlayerAssets,
   ) {
     this.root.name = `player:${id}`;
+    this.root.scale.setScalar(PIECE_SCALE);
 
     this.rig = new PlayerRig(assets.blankFigure, assets.kitMat);
     // Numbers ride on the upper body so they lean with it.

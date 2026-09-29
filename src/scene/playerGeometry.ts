@@ -33,6 +33,11 @@ export const SHOULDER_Y = 1.43;
 export const SHOULDER_Z = 0.245;
 export const HEAD_Y = 1.69;
 export const FIGURE_HEIGHT = 1.84;
+/**
+ * On-board enlargement of players and the ball (1 = real size) so pieces are easy to
+ * click. Applied to the whole piece: figure, ring, pick volume and label height.
+ */
+export const PIECE_SCALE = 1.4;
 
 /** Depth / width ratio of the chest and hip cross-sections. */
 const TORSO_DEPTH = 0.62;

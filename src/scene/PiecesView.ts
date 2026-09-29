@@ -10,7 +10,7 @@ import {
 } from '../state/schema';
 import { Ball } from './Ball';
 import { kitKey, PlayerAssets } from './PlayerAssets';
-import type { KitColors } from './playerGeometry';
+import { PIECE_SCALE, type KitColors } from './playerGeometry';
 import { PlayerMesh, type PlayerAppearance } from './PlayerMesh';
 
 const GK_SHORTS = '#1d1d1d';
@@ -99,7 +99,7 @@ export class PiecesView {
 
     if (!prev || prev.ball !== s.ball) this.ball.setPosition(s.ball.x, s.ball.z);
     if (!prev || prev.settings !== s.settings) {
-      this.ball.setScale(s.settings.ballScale);
+      this.ball.setScale(s.settings.ballScale * PIECE_SCALE);
       for (const m of this.players.values()) m.setLabelVisible(s.settings.showLabels);
     }
     if (

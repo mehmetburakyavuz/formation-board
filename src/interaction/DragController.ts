@@ -5,10 +5,12 @@ import { BALL_ID, type AppState, type PieceId } from '../state/schema';
 import type { Store } from '../state/store';
 import type { DragGuides } from '../scene/DragGuides';
 import type { PiecesView } from '../scene/PiecesView';
+import { PIECE_SCALE } from '../scene/playerGeometry';
 import { DRAG_MARGIN, SNAP_STEP } from '../scene/SnapGrid';
 import type { Picker } from './Picker';
 
-const MIN_PLAYER_DISTANCE = 0.8;
+/** Enlarged pieces need more room so their figures and rings do not overlap. */
+const MIN_PLAYER_DISTANCE = 0.8 * PIECE_SCALE;
 
 export interface DragCommit {
   before: Positions;

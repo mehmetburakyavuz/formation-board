@@ -1,9 +1,13 @@
 import { bendFromHandle } from '../../logic/arrowPath';
 import { isInteractive } from '../../state/actions';
-import type { ArrowDrawing, PieceId } from '../../state/schema';
+import type { AppState, ArrowDrawing, PieceId } from '../../state/schema';
 import { ClickTracker, hitDrawing, type Tool, type ToolContext } from './Tool';
 
 const HANDLE_HIT_PX = 16;
+
+function isPlayer(s: AppState, id: PieceId): boolean {
+  return s.players.some((p) => p.id === id);
+}
 
 interface BendDrag {
   pointerId: number;
@@ -25,9 +29,23 @@ export class SelectTool implements Tool {
     return this.ctx.drag.active || this.ctx.selection.boxActive || this.bend !== null;
   }
 
+  /** Active team + ball, plus visible opponents (pressing one switches the active team). */
   private pickables() {
     const s = this.ctx.store.state;
-    return this.ctx.pieces.pickables((id) => isInteractive(s, id));
+    return this.ctx.pieces.pickables(
+      (id) => isInteractive(s, id) || (s.settings.opponentMode !== 'hidden' && isPlayer(s, id)),
+    );
+  }
+
+  /** Makes the pressed opponent's team active; its selection starts fresh. */
+  private switchTeamFor(id: PieceId): boolean {
+    const { ctx } = this;
+    const s = ctx.store.state;
+    const team = s.players.find((p) => p.id === id)?.team;
+    if (!team || team === s.activeTeam) return false;
+    ctx.controller.setActiveTeam(team);
+    ctx.selection.select([id]);
+    return true;
   }
 
   down(e: PointerEvent): boolean {
@@ -41,12 +59,15 @@ export class SelectTool implements Tool {
     const id = ctx.picker.pickPiece(e, this.pickables());
     if (id) {
       ctx.controller.selectDrawing(null);
-      if (e.shiftKey) {
-        if (!ctx.selection.toggle(id)) return true; // deselected: nothing to drag
-      } else if (ctx.selection.isSelected(id)) {
-        this.narrowTo = id;
-      } else {
-        ctx.selection.select([id]);
+      // An opponent press switches teams and selects it alone; otherwise the usual rules.
+      if (!this.switchTeamFor(id)) {
+        if (e.shiftKey) {
+          if (!ctx.selection.toggle(id)) return true; // deselected: nothing to drag
+        } else if (ctx.selection.isSelected(id)) {
+          this.narrowTo = id;
+        } else {
+          ctx.selection.select([id]);
+        }
       }
       if (ctx.drag.begin(e, id, [...ctx.store.state.selection])) {
         ctx.capture(e);
