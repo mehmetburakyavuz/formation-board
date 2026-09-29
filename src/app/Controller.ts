@@ -11,6 +11,8 @@ import {
 } from '../state/commands';
 import { findFormation, formationFromTeam } from '../state/formationOps';
 import { loadDocumentCommand, persistedOf } from '../state/document';
+import { matchBoard } from '../state/matchOps';
+import type { ImportedTeam } from '../data/matchImport/mapLineup';
 import type { History } from '../state/history';
 import { createInitialState } from '../state/initialState';
 import { saveCustomFormations } from '../state/persistence';
@@ -241,6 +243,12 @@ export class Controller {
    * Fresh board: teams, players, ball, drawings and scenario back to the defaults.
    * View preferences (labels, snap, colours of the tools…) are kept. One undo step.
    */
+  /** Replaces the board with a real match's line-ups (one undo step). */
+  importMatch(home: ImportedTeam, away: ImportedTeam): void {
+    const before = persistedOf(this.store.state);
+    this.history.execute(loadDocumentCommand(before, matchBoard(before, home, away)));
+  }
+
   resetBoard(): void {
     const s = this.store.state;
     const fresh = persistedOf(createInitialState());

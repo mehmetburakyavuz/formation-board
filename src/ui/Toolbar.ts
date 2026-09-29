@@ -30,12 +30,15 @@ function iconButton(label: string, shortcut: string, d: string): HTMLButtonEleme
 }
 
 const LIBRARY_ICON = 'M4 6a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z';
+/** Shirt: import a real match's line-ups. */
+const MATCH_ICON = 'M9 4l-5 3 2 4 2-1v10h8V10l2 1 2-4-5-3a3 3 0 0 1-6 0z';
 const CAMERA_ICON = 'M4 8h3l2-2h6l2 2h3v11H4zM12 16.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6z';
 
 export interface ToolbarActions {
   onHelp: () => void;
   onAddFrame: () => void;
   onLibrary: () => void;
+  onMatchImport: () => void;
   onScreenshot: () => void;
   /** First click: asks for confirmation. */
   onResetArmed: () => void;
@@ -61,6 +64,8 @@ export class Toolbar {
     frameBtn.addEventListener('click', actions.onAddFrame);
     const libraryBtn = iconButton(tr.library.open, 'Ctrl+S', LIBRARY_ICON);
     libraryBtn.addEventListener('click', actions.onLibrary);
+    const matchBtn = iconButton(tr.matchImport.open, '', MATCH_ICON);
+    matchBtn.addEventListener('click', actions.onMatchImport);
     const pngBtn = iconButton(tr.library.exportPng, '', CAMERA_ICON);
     pngBtn.addEventListener('click', actions.onScreenshot);
     const helpBtn = iconButton(tr.toolbar.help, '?', HELP_ICON);
@@ -91,7 +96,7 @@ export class Toolbar {
         this.toolsSlot,
         el('div', { class: 'toolbar-group' }, [this.undoBtn, this.redoBtn, resetBtn]),
         el('div', { class: 'toolbar-group' }, [this.snapBtn, this.labelsBtn]),
-        el('div', { class: 'toolbar-group' }, [frameBtn, libraryBtn, pngBtn]),
+        el('div', { class: 'toolbar-group' }, [frameBtn, libraryBtn, matchBtn, pngBtn]),
         el('div', { class: 'toolbar-group' }, [helpBtn]),
       ],
     );

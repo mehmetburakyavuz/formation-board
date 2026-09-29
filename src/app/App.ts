@@ -33,6 +33,7 @@ import { tr } from '../i18n/tr';
 import { withPersisted } from '../state/document';
 import { loadAutosave } from '../state/persistence';
 import { LibraryModal } from '../ui/LibraryModal';
+import { MatchImportModal } from '../ui/MatchImportModal';
 import { Toast } from '../ui/Toast';
 import { Autosave } from './Autosave';
 import { LibraryActions } from './LibraryActions';
@@ -67,6 +68,7 @@ export class App {
   readonly scenario: ScenarioActions;
   readonly library: LibraryActions;
   readonly libraryModal: LibraryModal;
+  readonly matchModal: MatchImportModal;
   readonly pov: PovCamera;
   private guides: DragGuides;
   private root: HTMLElement;
@@ -140,10 +142,15 @@ export class App {
     new Autosave(this.store, () => notify(tr.library.storageFailed, 'error'));
     this.library = new LibraryActions(this.store, this.history, sm, notify);
     this.libraryModal = new LibraryModal(this.library);
+    this.matchModal = new MatchImportModal(this.controller, notify);
     const toolbar = new Toolbar(this.controller, {
       onHelp: () => this.help.open(),
       onAddFrame: () => this.scenario.addFrame(),
       onLibrary: () => this.libraryModal.open(),
+      onMatchImport: () => {
+        this.exitPov();
+        this.matchModal.open();
+      },
       onScreenshot: () => void this.library.exportPng(),
       onResetArmed: () => notify(tr.toolbar.resetConfirm),
       onReset: () => {
@@ -166,6 +173,7 @@ export class App {
       toast.root,
       this.help.root,
       this.libraryModal.root,
+      this.matchModal.root,
     );
 
     this.wireCamera();

@@ -1312,6 +1312,24 @@ kbd {
   white-space: nowrap;
 }
 
+/* --- Match import dialog --- */
+.match-modal .modal-section > * + * {
+  margin-top: 8px;
+}
+
+.match-modal .modal-section > .text-input {
+  width: 100%;
+}
+
+.match-modal .modal-section p {
+  margin-bottom: 0;
+}
+
+.match-modal[aria-busy] .library-list {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* --- Toast --- */
 .toast {
   position: absolute;
